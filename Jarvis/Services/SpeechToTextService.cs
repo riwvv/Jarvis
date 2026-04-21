@@ -312,26 +312,15 @@ namespace Jarvis.Services
             using var factory = WhisperFactory.FromPath(_model);
             using var process = factory.CreateBuilder().WithLanguage("auto").Build();
             var resultBuilder = "";
+
             await foreach (var item in process.ProcessAsync(stream))
-            {
                 resultBuilder += item.Text;
-            }
+            resultBuilder = resultBuilder.Trim();
 
-            if (resultBuilder != "" || !string.IsNullOrWhiteSpace(resultBuilder))
-            {
-                return resultBuilder.Trim();
-            }
+            if (resultBuilder == "" || string.IsNullOrWhiteSpace(resultBuilder))
+                return "";
 
-            return "";
-
-            //using var content = new MultipartFormDataContent();
-            //using var streamContent = new StreamContent(wavStream);
-            //streamContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("audio/wav");
-            //content.Add(streamContent, "file", "speech.wav");
-
-            //Надо сделать в Whisper
-            //var response = await _client.PostAsync("transcribe", content);
-            //return await response.Content.ReadAsStringAsync();
+            return resultBuilder;
         }
 
         private void WriteWavHeader(Stream stream, int dataLength, int rate)
