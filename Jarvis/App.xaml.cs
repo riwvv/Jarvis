@@ -1,4 +1,5 @@
-﻿using Jarvis.ViewModels;
+﻿using Jarvis.Services;
+using Jarvis.ViewModels;
 using Jarvis.Views.Windows;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -23,6 +24,7 @@ public partial class App : Application {
     private void InitializedDI() {
         _host = Host.CreateDefaultBuilder().ConfigureServices((context, services) => {
             // services.AddSingleton<Service>(); // таким же образом регистрируем все будущие сервисы
+            services.AddSingleton<SpeechToTextService>();
 
             services.AddSingleton<MainViewModel>();
 
