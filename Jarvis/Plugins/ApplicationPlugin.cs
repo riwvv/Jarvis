@@ -2,9 +2,9 @@
 using System.Collections.Generic;
 using System.Text;
 
-namespace Jarvis.Plugins
-{
-    class TempPlugin
-    {
-    }
+namespace Jarvis.Plugins;
+
+public class ApplicationPlugin{
+
 }
+
