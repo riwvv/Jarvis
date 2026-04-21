@@ -5,8 +5,180 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:Jarvis.Views.Windows"
         mc:Ignorable="d"
-        Title="MainWindow" Height="450" Width="800">
-    <Grid>
-        
+        Title="DesingWindow" Height="200" Width="400"
+        WindowStyle="None"
+        AllowsTransparency="True"
+        Background="Transparent"
+        WindowStartupLocation="CenterScreen"
+        MouseLeftButtonDown="Window_MouseLeftButtonDown">
+    <Window.Resources>
+
+        <SolidColorBrush x:Key="LimeGreenBrush" Color="#c0fc04"/>
+        <SolidColorBrush x:Key="LimeYellowBrush" Color="#e5ff45"/>
+        <SolidColorBrush x:Key="HotPinkBrush" Color="#ea027e"/>
+        <SolidColorBrush x:Key="HotRedBrush" Color="#ff0d1a"/>
+        <SolidColorBrush x:Key="AquaCyanBrush" Color="#3601fb"/>
+        <SolidColorBrush x:Key="OrangeBrush" Color="#ff5500"/>
+        <SolidColorBrush x:Key="BackgroundBrush" Color="#140c12"/>
+        <SolidColorBrush x:Key="BlackBrush" Color="#000000"/>
+
+        <Color x:Key="LimeGreenShadow">#80c0fc04</Color>
+        <Color x:Key="LimeYellowShadow">#80e5ff45</Color>
+        <Color x:Key="HotPinkShadow">#80ea027e</Color>
+        <Color x:Key="HotRedShadow">#80ff0d1a</Color>
+        <Color x:Key="AquaCyanShadow">#803601fb</Color>
+
+        <VisualBrush x:Key="DotGridBrush"
+                 TileMode="Tile"
+                 Viewport="0 0 50 50"
+                 ViewportUnits="Absolute"
+                 Viewbox="0 0 50 50"
+                 ViewboxUnits="Absolute">
+            <VisualBrush.Visual>
+                <Ellipse Width="2" Height="2" Fill="WhiteSmoke" Margin="22.5 22.5 0 0"/>
+            </VisualBrush.Visual>
+        </VisualBrush>
+
+        <VisualBrush x:Key="SreenLineBrush"
+                 TileMode="Tile"
+                 Viewport="0 0 8 1"
+                 ViewportUnits="Absolute"
+                 Viewbox="0 0 8 1"
+                 ViewboxUnits="Absolute">
+            <VisualBrush.Visual>
+                <Path Stroke="{StaticResource LimeYellowBrush}"
+                  StrokeThickness="2"
+                  Opacity="0.3"
+                  Margin="7 0 0 0">
+                    <Path.Data>
+                        <PathGeometry>
+                            <PathFigure StartPoint="0 0" IsClosed="False">
+                                <BezierSegment Point1="0 0" Point2="0 70"/>
+                            </PathFigure>
+                        </PathGeometry>
+                    </Path.Data>
+                    <Path.Effect>
+                        <DropShadowEffect Color="{StaticResource HotRedShadow}" BlurRadius="7" ShadowDepth="0"/>
+                    </Path.Effect>
+                </Path>
+            </VisualBrush.Visual>
+        </VisualBrush>
+    </Window.Resources>
+
+    <Window.Triggers>
+        <EventTrigger RoutedEvent="Loaded">
+            <BeginStoryboard>
+                <Storyboard RepeatBehavior="Forever">
+                    <DoubleAnimation
+                    Storyboard.TargetName="MainGrid"
+                    Storyboard.TargetProperty="Opacity"
+                    From="1" To="0.95" Duration="0:0:0.02"
+                    AutoReverse="True" BeginTime="0:0:0.5"/>
+                    <DoubleAnimation
+                    Storyboard.TargetName="MainGrid"
+                    Storyboard.TargetProperty="(FrameworkElement.RenderTransform).(TranslateTransform.X)"
+                    From="0" To="2" Duration="0:0:0.01"
+                    AutoReverse="True" BeginTime="0:0:1"/>
+                </Storyboard>
+            </BeginStoryboard>
+        </EventTrigger>
+    </Window.Triggers>
+
+    <Grid x:Name="MainGrid" Background="{StaticResource BackgroundBrush}">
+        <Grid x:Name="ContentGrid">
+            <Grid.RenderTransform>
+                <TranslateTransform/>
+            </Grid.RenderTransform>
+
+            <Rectangle Fill="{StaticResource DotGridBrush}" Stroke="{StaticResource OrangeBrush}" StrokeThickness="3">
+                <Rectangle.Effect>
+                    <DropShadowEffect Color="{StaticResource HotPinkShadow}" BlurRadius="50" ShadowDepth="0"/>
+                </Rectangle.Effect>
+            </Rectangle>
+
+            <Grid>
+                <Rectangle Fill="{StaticResource SreenLineBrush}" Stroke="{StaticResource LimeGreenBrush}" StrokeThickness="3" Width="200" Height="70">
+                    <Rectangle.Effect>
+                        <DropShadowEffect Color="{StaticResource LimeYellowShadow}" BlurRadius="35" ShadowDepth="0"/>
+                    </Rectangle.Effect>
+                </Rectangle>
+
+                <Path Stroke="{StaticResource AquaCyanBrush}" StrokeThickness="1" Opacity="0.8" Data="M 103 100 C 180 130 240 75 297 100"/>
+                <Path Stroke="{StaticResource LimeGreenBrush}" StrokeThickness="1" Opacity="0.8" Data="M 103 100 C 135 75 230 125 297 100"/>
+                <Path Stroke="{StaticResource HotRedBrush}" StrokeThickness="1" Opacity="0.8" Data="M 103 100 L 297 100"/>
+
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Center">
+                    <Rectangle Fill="{StaticResource HotPinkBrush}" Margin="3 0" Width="8" Height="15" RadiusX="4" RadiusY="4"/>
+                    <Rectangle Fill="{StaticResource OrangeBrush}" Margin="3 0" Width="8" Height="25" RadiusX="4" RadiusY="4"/>
+                    <Rectangle Fill="{StaticResource AquaCyanBrush}" Margin="3 0" Width="8" Height="45" RadiusX="4" RadiusY="4"/>
+                    <Rectangle Fill="{StaticResource HotPinkBrush}" Margin="3 0" Width="8" Height="50" RadiusX="4" RadiusY="4"/>
+                    <Rectangle Fill="{StaticResource LimeYellowBrush}" Margin="3 0" Width="8" Height="35" RadiusX="4" RadiusY="4"/>
+                    <Rectangle Fill="{StaticResource HotPinkBrush}" Margin="3 0" Width="8" Height="20" RadiusX="4" RadiusY="4"/>
+                    <Rectangle Fill="{StaticResource AquaCyanBrush}" Margin="3 0" Width="8" Height="10" RadiusX="4" RadiusY="4"/>
+                </StackPanel>
+            </Grid>
+
+            <Grid>
+                <TextBlock Text="CURRENT_MODE:" Foreground="{StaticResource OrangeBrush}" 
+                    FontSize="20" FontFamily="Hacked Cyr" FontWeight="Bold" 
+                    Margin="7 5 0 0" VerticalAlignment="Top" HorizontalAlignment="Left"/>
+                <TextBlock Text="CURRENT_MODE:" Foreground="{StaticResource AquaCyanBrush}" 
+                    FontSize="20" FontFamily="Hacked Cyr" FontWeight="Bold" 
+                    Margin="9 5 0 0" VerticalAlignment="Top" HorizontalAlignment="Left"/>
+                <TextBlock Text="CURRENT_MODE:" Foreground="{StaticResource LimeYellowBrush}" 
+                    FontSize="20" FontFamily="Hacked Cyr" FontWeight="Bold" 
+                    Margin="8 5 0 0" VerticalAlignment="Top" HorizontalAlignment="Left"/>
+
+                <TextBlock Text="ONLINE" Foreground="{StaticResource AquaCyanBrush}" 
+                    FontSize="20" FontFamily="Hacked Cyr" FontWeight="Bold" 
+                    Margin="0 5 7 0" VerticalAlignment="Top" HorizontalAlignment="Right"/>
+                <TextBlock Text="ONLINE" Foreground="{StaticResource HotRedBrush}" 
+                    FontSize="20" FontFamily="Hacked Cyr" FontWeight="Bold" 
+                    Margin="0 5 9 0" VerticalAlignment="Top" HorizontalAlignment="Right"/>
+                <TextBlock Text="ONLINE" Foreground="{StaticResource LimeGreenBrush}" 
+                    FontSize="20" FontFamily="Hacked Cyr" FontWeight="Bold" 
+                    Margin="0 5 8 0" VerticalAlignment="Top" HorizontalAlignment="Right"/>
+                <Path Stroke="{StaticResource AquaCyanBrush}" StrokeThickness="2" Data="M 3 30 H 397">
+                    <Path.Effect>
+                        <DropShadowEffect Color="{StaticResource LimeYellowShadow}" BlurRadius="35" ShadowDepth="0"/>
+                    </Path.Effect>
+                </Path>
+            </Grid>
+
+            <Grid>
+                <Rectangle Fill="{StaticResource BackgroundBrush}" Stroke="{StaticResource HotPinkBrush}" StrokeThickness="2"
+                       Width="175" Height="25"
+                       VerticalAlignment="Bottom" HorizontalAlignment="Left" Margin="10">
+                    <Rectangle.Effect>
+                        <DropShadowEffect Color="{StaticResource HotPinkShadow}" BlurRadius="10" ShadowDepth="0"/>
+                    </Rectangle.Effect>
+                </Rectangle>
+
+                <StackPanel Width="175" Height="25" VerticalAlignment="Bottom" HorizontalAlignment="Left" Orientation="Horizontal" Margin="10">
+                    <Grid VerticalAlignment="Center" Margin="0 1 0 0">
+                        <TextBlock Text="STATE:" Foreground="{StaticResource AquaCyanBrush}" 
+                            FontSize="20" FontFamily="Hacked Cyr" FontWeight="Bold" 
+                            Margin="7 0 0 0"/>
+                        <TextBlock Text="STATE:" Foreground="{StaticResource HotRedBrush}" 
+                            FontSize="20" FontFamily="Hacked Cyr" FontWeight="Bold" 
+                            Margin="9 0 0 0"/>
+                        <TextBlock Text="STATE:" Foreground="{StaticResource LimeGreenBrush}" 
+                            FontSize="20" FontFamily="Hacked Cyr" FontWeight="Bold" 
+                            Margin="8 0 0 0"/>
+                    </Grid>
+                    <Grid VerticalAlignment="Center" Margin="0 1 0 0">
+                        <TextBlock Text="{Binding State}" Foreground="{StaticResource AquaCyanBrush}" 
+                            FontSize="20" FontFamily="Hacked Cyr" FontWeight="Bold" 
+                            Margin="0 0 7 0" HorizontalAlignment="Right"/>
+                        <TextBlock Text="{Binding State}" Foreground="{StaticResource HotRedBrush}" 
+                            FontSize="20" FontFamily="Hacked Cyr" FontWeight="Bold" 
+                            Margin="0 0 9 0" HorizontalAlignment="Right"/>
+                        <TextBlock Text="{Binding State}" Foreground="{StaticResource LimeGreenBrush}" 
+                            FontSize="20" FontFamily="Hacked Cyr" FontWeight="Bold" 
+                            Margin="0 0 8 0" HorizontalAlignment="Right"/>
+                    </Grid>
+                </StackPanel>
+            </Grid>
+        </Grid>
     </Grid>
 </Window>
