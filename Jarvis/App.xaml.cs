@@ -24,6 +24,7 @@ public partial class App : Application {
     private void InitializedDI() {
         _host = Host.CreateDefaultBuilder().ConfigureServices((context, services) => {
             // services.AddSingleton<Service>(); // таким же образом регистрируем все будущие сервисы
+            services.AddSingleton<SpeechToTextService>();
 
             services.AddSingleton<MainViewModel>();
 
