@@ -1,4 +1,5 @@
-﻿using Jarvis.ViewModels;
+﻿using Jarvis.Services;
+using Jarvis.ViewModels;
 using Jarvis.Views.Windows;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -10,13 +11,20 @@ namespace Jarvis;
 public partial class App : Application {
     public static Kernel? KernelCore { get; private set; }
     public static IServiceProvider? Services { get; private set; }
-    private readonly IHost _host;
+    private IHost _host;
 
     public App() {
         // регистрация DI
+        InitializedDI();
+
+        // регистрация SemanticKernel
+        InitializedSemanticKernel();
+    }
+
+    private void InitializedDI() {
         _host = Host.CreateDefaultBuilder().ConfigureServices((context, services) => {
-            // тут добавить все сервисы
-            // services.AddSingleton<Service>(); // типо так
+            // services.AddSingleton<Service>(); // таким же образом регистрируем все будущие сервисы
+            services.AddSingleton<SpeechToTextService>();
 
             services.AddSingleton<MainViewModel>();
 
@@ -24,15 +32,12 @@ public partial class App : Application {
         }).Build();
 
         Services = _host.Services;
-
-        // регистрация SemanticKernel
-        InitializedSemanticKernel();
     }
 
     private void InitializedSemanticKernel() {
         var builder = Kernel.CreateBuilder();
 
-        // builder.Plugins.AddFromType<Plugin>(); // тут добавляем все плагины
+        // builder.Plugins.AddFromType<Plugin>(); // таким же образом регистрируем все будущие плагины
 
         builder.AddOpenAIChatCompletion(modelId: "qwen2.5:7b", endpoint: new Uri("http://localhost/11434/v1"), apiKey: "dummy");
         KernelCore = builder.Build();
