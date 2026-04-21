@@ -1,14 +1,10 @@
 ﻿using NAudio.Wave;
 using Pv;
 using SileroVad;
-using System;
-using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
-using System.Net.Http;
 using System.Text;
 using Whisper.net;
-using Whisper.net.Ggml;
 
 
 namespace Jarvis.Services
