@@ -1,18 +1,10 @@
-﻿using Jarvis.Models;
-using Microsoft.SemanticKernel;
+﻿using Microsoft.SemanticKernel;
 using Microsoft.Win32;
-using System;
-using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Text;
-using Microsoft.Win32;
-using System.ComponentModel;
-using System.Diagnostics;
 using System.IO;
-using System.Reflection;
-using System.Text;
-
+using Jarvis.Models;
 
 namespace Jarvis.Plugins;
 
