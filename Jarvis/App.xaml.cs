@@ -28,6 +28,8 @@ public partial class App : Application {
             // services.AddSingleton<Service>(); // таким же образом регистрируем все будущие сервисы
             services.AddSingleton<SpeechToTextService>();
 
+            services.AddSingleton<CommunicationAiService>();
+
             services.AddSingleton<MainViewModel>();
 
             services.AddSingleton<MainWindow>();
