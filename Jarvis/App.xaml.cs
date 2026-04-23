@@ -6,7 +6,6 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.SemanticKernel;
 using System.Windows;
-using Jarvis.Models;
 
 namespace Jarvis;
 
@@ -40,7 +39,7 @@ public partial class App : Application {
         var builder = Kernel.CreateBuilder();
 
         //builder.Plugins.AddFromType<Plugin>(); // таким же образом регистрируем все будущие плагины
-        builder.Plugins.AddFromType<InstalledApplication>(); 
+        builder.Plugins.AddFromType<ApplicationPlugin>(); 
         builder.Plugins.AddFromType<SystemAudioPlugin>(); 
 
         builder.AddOpenAIChatCompletion(modelId: "qwen2.5:7b", endpoint: new Uri("http://localhost/11434/v1"), apiKey: "dummy");
