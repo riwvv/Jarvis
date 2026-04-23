@@ -23,7 +23,7 @@ namespace Jarvis.Services
         private readonly Vad _vad;
         private Porcupine? _porcupine;
 
-        private string _model = "ggml-medium.bin";
+        private readonly string _model = "ggml-medium.bin";
 
         private readonly List<float> _audioBuffer = new(16000 * 5);
         private readonly List<short> _wakeWordBuffer = new(512);
