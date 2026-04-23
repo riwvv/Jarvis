@@ -15,16 +15,26 @@ public partial class App : Application {
     private IHost _host;
 
     public App() {
-        // регистрация DI
-        InitializedDI();
-
-        // регистрация SemanticKernel
         InitializedSemanticKernel();
+        InitializedDI();
+    }
+
+    private void InitializedSemanticKernel() {
+        var builder = Kernel.CreateBuilder();
+
+        builder.Plugins.AddFromType<ApplicationPlugin>(); 
+        builder.Plugins.AddFromType<SystemAudioPlugin>(); 
+
+        builder.AddOpenAIChatCompletion(modelId: "qwen2.5:7b", endpoint: new Uri("http://localhost/11434/v1"), apiKey: "dummy");
+        KernelCore = builder.Build();
     }
 
     private void InitializedDI() {
+        if (KernelCore == null)
+            throw new InvalidOperationException("KernelCore не инициализирован!");
+
         _host = Host.CreateDefaultBuilder().ConfigureServices((context, services) => {
-            // services.AddSingleton<Service>(); // таким же образом регистрируем все будущие сервисы
+            services.AddSingleton(KernelCore!);
             services.AddSingleton<SpeechToTextService>();
 
             services.AddSingleton<CommunicationAiService>();
@@ -35,17 +45,6 @@ public partial class App : Application {
         }).Build();
 
         Services = _host.Services;
-    }
-
-    private void InitializedSemanticKernel() {
-        var builder = Kernel.CreateBuilder();
-
-        //builder.Plugins.AddFromType<Plugin>(); // таким же образом регистрируем все будущие плагины
-        builder.Plugins.AddFromType<ApplicationPlugin>(); 
-        builder.Plugins.AddFromType<SystemAudioPlugin>(); 
-
-        builder.AddOpenAIChatCompletion(modelId: "qwen2.5:7b", endpoint: new Uri("http://localhost/11434/v1"), apiKey: "dummy");
-        KernelCore = builder.Build();
     }
 
     protected override async void OnStartup(StartupEventArgs e) {

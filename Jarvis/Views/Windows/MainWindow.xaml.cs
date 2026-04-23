@@ -1,5 +1,4 @@
-﻿using Jarvis.ViewModels;
-using System.Windows;
+﻿using System.Windows;
 
 namespace Jarvis.Views.Windows;
 
