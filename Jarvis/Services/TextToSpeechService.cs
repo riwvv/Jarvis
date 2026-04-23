@@ -185,16 +185,9 @@ namespace Jarvis.Services
 
         public void Dispose()
         {
-            try
-            {
-                _synthesizer.SpeakAsyncCancelAll();
-                _synthesizer.Dispose();
-                _currentCts?.Dispose();
-            }
-            catch 
-            {
-            
-            }
+            _synthesizer.SpeakAsyncCancelAll();
+            _synthesizer.Dispose();
+            _currentCts?.Dispose();
         }
     }
 }
