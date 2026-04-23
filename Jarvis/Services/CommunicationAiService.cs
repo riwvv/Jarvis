@@ -1,7 +1,11 @@
-﻿using Microsoft.SemanticKernel;
+﻿using Microsoft.Extensions.AI;
+using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.ChatCompletion;
 using Microsoft.SemanticKernel.Connectors.OpenAI;
+using System;
+using System.Collections.Generic;
 using System.Diagnostics;
+using System.Text;
 
 namespace Jarvis.Services {
     public class CommunicationAiService {
@@ -52,10 +56,13 @@ namespace Jarvis.Services {
                 OnExecute?.Invoke("EXECUTE");
                 Debug.WriteLine($"Отправка запроса: {userQuery}");
 
+                // Добавляем сообщение пользователя в историю
                 _history.AddUserMessage(userQuery);
 
+                // Проверяем отмену перед запросом
                 cancellationToken.ThrowIfCancellationRequested();
 
+                // Получаем ответ от модели
                 var response = await _chat.GetChatMessageContentAsync(
                     _history,
                     _settings,
@@ -64,11 +71,15 @@ namespace Jarvis.Services {
 
                 if (response != null && !string.IsNullOrEmpty(response.Content)) {
                     _history.AddAssistantMessage(response.Content);
+
+                    // Оповещаем об успешном результате
                     OnResult?.Invoke("DONE");
                     Debug.WriteLine($"Получен ответ: {response.Content}");
 
                     return response.Content;
                 }
+
+                // Пустой ответ
                 OnResult?.Invoke("ERROR: Модель вернула пустой ответ");
                 return null;
             }
