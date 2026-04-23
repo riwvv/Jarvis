@@ -1,3 +1,6 @@
 <Solution>
   <Project Path="Jarvis/Jarvis.csproj" />
+  <Project Path="TestJarvis/TestJarvis.csproj" Id="f1f6626b-df49-4f4c-974e-0947a56c35c5">
+    <Build Solution="Debug|*" Project="false" />
+  </Project>
 </Solution>
