@@ -7,6 +7,12 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        this.WindowStartupLocation = WindowStartupLocation.Manual;
+
+        var workArea = SystemParameters.WorkArea;
+
+        this.Left = workArea.Right - this.Width - 10;
+        this.Top = workArea.Bottom - this.Height - 10;
     }
 
     private void Window_MouseLeftButtonDown(object sender, System.Windows.Input.MouseButtonEventArgs e) {
