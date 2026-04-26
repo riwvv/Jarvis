@@ -4,13 +4,13 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:Jarvis.Views.Windows"
+        xmlns:tb="http://www.hardcodet.net/taskbar"
         mc:Ignorable="d"
         Title="DesingWindow" Height="200" Width="400"
         WindowStyle="None"
         AllowsTransparency="True"
         Background="Transparent"
-        WindowStartupLocation="CenterScreen"
-        MouseLeftButtonDown="Window_MouseLeftButtonDown">
+        MouseLeftButtonDown="Window_MouseLeftButtonDown" ResizeMode="NoResize">
     <Window.Resources>
 
         <SolidColorBrush x:Key="LimeGreenBrush" Color="#c0fc04"/>
@@ -85,6 +85,8 @@
     </Window.Triggers>
 
     <Grid x:Name="MainGrid" Background="{StaticResource BackgroundBrush}">
+        <tb:TaskbarIcon IconSource="/Image/jarvis.ico" Visibility="Visible" ContextMenu="{Binding ContextMenu}"
+                        ToolTipText="Jarvis" />
         <Grid x:Name="ContentGrid">
             <Grid.RenderTransform>
                 <TranslateTransform/>

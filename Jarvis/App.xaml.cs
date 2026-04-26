@@ -52,6 +52,7 @@ public partial class App : Application {
         mainWindow.DataContext = _host.Services.GetRequiredService<MainViewModel>();
         mainWindow.Show();
         base.OnStartup(e);
+        Application.Current.MainWindow.Hide();
     }
 
     protected override async void OnExit(ExitEventArgs e) {
@@ -62,7 +63,7 @@ public partial class App : Application {
             if (proc.Id != Environment.ProcessId)
                 proc.Kill();
         }
-
+        
         base.OnExit(e);
     }
 }
