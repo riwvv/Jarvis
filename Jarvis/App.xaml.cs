@@ -12,7 +12,7 @@ namespace Jarvis;
 public partial class App : Application {
     public static Kernel? KernelCore { get; private set; }
     public static IServiceProvider? Services { get; private set; }
-    private IHost _host;
+    private IHost? _host;
 
     public App() {
         InitializedSemanticKernel();
@@ -49,15 +49,16 @@ public partial class App : Application {
     }
 
     protected override async void OnStartup(StartupEventArgs e) {
-        await _host.StartAsync();
+        await _host!.StartAsync();
         var mainWindow = _host.Services.GetRequiredService<MainWindow>();
         mainWindow.DataContext = _host.Services.GetRequiredService<MainViewModel>();
         mainWindow.Show();
+
         base.OnStartup(e);
     }
 
     protected override async void OnExit(ExitEventArgs e) {
-        await _host.StopAsync();
+        await _host!.StopAsync();
         _host.Dispose();
 
         foreach (var proc in System.Diagnostics.Process.GetProcessesByName("Jarvis")) {

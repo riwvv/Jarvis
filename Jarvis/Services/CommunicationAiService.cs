@@ -21,25 +21,27 @@ namespace Jarvis.Services {
         public CommunicationAiService(Kernel kernel) {
             _kernel = kernel;
             _chat = _kernel.GetRequiredService<IChatCompletionService>();
-            _isProcessing = false;
             _history = new();
             _settings = new OpenAIPromptExecutionSettings {
                 FunctionChoiceBehavior = FunctionChoiceBehavior.Auto(),
                 Temperature = 0.7,
                 MaxTokens = 1024
             };
+
             _history.AddSystemMessage("Всегда на русском языке. Так же следуй правилу: каждый твой ответ должен начинаться на слово-состояние результата выполнения команды:" +
             "DONE - успешно выполнил команду;" +
             "WARNING - возникли небольшие проблемы или нужно уточнение;" +
             "ERROR - не можешь выполнить команду или команда вызвала исключение;" +
             "Запомни, ты можешь отвечать МАКСИМАЛЬНО КРАТКИМ текстом (1-2 предложения), но каждый ответ обязан начинаться на одно из этих слов по ситуации");
+            
+            _isProcessing = false;
         }
         public IReadOnlyList<ChatMessageContent> GetChatHistory() {
             return _history.AsReadOnly();
         }
 
 
-        public async Task<string> GetRequestUser(string userQuery, CancellationToken cancellationToken = default) {
+        public async Task<string?> GetRequestUser(string userQuery, CancellationToken cancellationToken = default) {
             if (string.IsNullOrWhiteSpace(userQuery)) {
                 OnResult?.Invoke("ERROR: Пустой запрос");
                 return null;

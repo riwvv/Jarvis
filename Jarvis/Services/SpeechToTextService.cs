@@ -6,24 +6,20 @@ using System.IO;
 using System.Text;
 using Whisper.net;
 
-
-namespace Jarvis.Services
-{
-    public class SpeechToTextService : IDisposable
-    {
+namespace Jarvis.Services {
+    public class SpeechToTextService : IDisposable {
         public event Action<string>? OnWakeUp;
         public event Action<string>? OnTimeout;
         public event Action<string>? OnProccessingText;
         public event Action<string>? OnSpeechRecognized;
 
+        private readonly string _model = "ggml-medium.bin";
         private readonly string _porcupineApiKey = "iTVHQmgjOSX0qPtqkZguw6PMkYr9ZqNJIWrgrV/VGVR0SfH9nOcwWA==";
         private int _porcupineFrameLength;
         private WaveInEvent? _microphone;
         private MemoryStream? _currentSpeech;
         private readonly Vad _vad;
         private Porcupine? _porcupine;
-
-        private readonly string _model = "ggml-medium.bin";
 
         private readonly List<float> _audioBuffer = new(16000 * 5);
         private readonly List<short> _wakeWordBuffer = new(512);
@@ -124,9 +120,9 @@ namespace Jarvis.Services
             }
         }
 
-        public void ProcessWakeWord(ReadOnlySpan<short> samples)
-        {
-            if (_porcupine == null) return;
+        public void ProcessWakeWord(ReadOnlySpan<short> samples) {
+            if (_porcupine == null) 
+                return;
 
             foreach (var sample in samples)
             {
