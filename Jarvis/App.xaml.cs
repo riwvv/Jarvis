@@ -26,7 +26,7 @@ public partial class App : Application {
         builder.Plugins.AddFromType<SystemAudioPlugin>();
         builder.Plugins.AddFromType<BrowserPlugin>();
 
-        builder.AddOpenAIChatCompletion(modelId: "qwen2.5:7b", endpoint: new Uri("http://localhost:11434/v1"), apiKey: "dummy");
+        builder.AddOpenAIChatCompletion(modelId: "qwen2.5:7b", endpoint: new Uri("http://localhost/11434/v1"), apiKey: "dummy");
         KernelCore = builder.Build();
     }
 
@@ -37,6 +37,7 @@ public partial class App : Application {
         _host = Host.CreateDefaultBuilder().ConfigureServices((context, services) => {
             services.AddSingleton(KernelCore!);
             services.AddSingleton<SpeechToTextService>();
+
             services.AddSingleton<CommunicationAiService>();
 
             services.AddSingleton<MainViewModel>();

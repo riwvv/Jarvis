@@ -1,14 +1,11 @@
 ﻿using CommunityToolkit.Mvvm.ComponentModel;
-using Jarvis.Services;
-using System.Diagnostics;
 
 namespace Jarvis.ViewModels;
 
 public partial class MainViewModel : ObservableObject, IDisposable {
     [ObservableProperty] private string _state = "SLEEP";
 
-    private readonly SpeechToTextService _speechToTextService;
-    private readonly CommunicationAiService _communicationAiService;
+    public MainViewModel() {
 
     public MainViewModel(SpeechToTextService speechToTextService, CommunicationAiService communicationAiService) {
         _speechToTextService = speechToTextService;
@@ -39,6 +36,6 @@ public partial class MainViewModel : ObservableObject, IDisposable {
     }
 
     public void Dispose() {
-        _speechToTextService?.Dispose();
+        
     }
 }
