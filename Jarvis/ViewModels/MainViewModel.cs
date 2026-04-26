@@ -47,14 +47,6 @@ public partial class MainViewModel : ObservableObject, IDisposable {
             State = "SLEEP";
         }; // уснул
 
-
-        OpenMenu.Header = "Открыть";
-        OpenMenu.Click += (s, e) => Show();
-
-
-        ExitMenu.Header = "Выход";
-        ExitMenu.Click += (s, e) => Closing();
-
         ContextMenu.Items.Add(OpenMenu);
         ContextMenu.Items.Add(ExitMenu);
 
