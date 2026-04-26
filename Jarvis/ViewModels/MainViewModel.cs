@@ -13,6 +13,7 @@ public partial class MainViewModel : ObservableObject, IDisposable {
     public MainViewModel(SpeechToTextService speechToTextService, CommunicationAiService communicationAiService) {
         _speechToTextService = speechToTextService;
         _communicationAiService = communicationAiService;
+
         _speechToTextService.OnSpeechRecognized += async (text) => {
             if (!string.IsNullOrWhiteSpace(text)) {
                 try {
@@ -23,6 +24,7 @@ public partial class MainViewModel : ObservableObject, IDisposable {
                 }
             }
         }; // отправка запроса к AI
+
         _speechToTextService.OnWakeUp += (text) => State = text; // проснулся|слушает
         _speechToTextService.OnProccessingText += (text) => State = text; // обрабатывает (Speech => Text)
         _communicationAiService.OnExecute += (text) => State = text; // выполняет
