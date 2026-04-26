@@ -52,6 +52,7 @@ public partial class App : Application {
         var mainWindow = _host.Services.GetRequiredService<MainWindow>();
         mainWindow.DataContext = _host.Services.GetRequiredService<MainViewModel>();
         mainWindow.Show();
+
         base.OnStartup(e);
     }
 
