@@ -42,23 +42,19 @@ namespace Jarvis.Services {
         private const int SLEEP_TIMEOUT_MS = 500;
         private const int MAX_BUFFER_SECONDS = 5;
 
-        public SpeechToTextService()
-        {
+        public SpeechToTextService() {
             _vad = new Vad();
 
-            try
-            {
+            try {
                 InitializePorcupine();
                 InitializeMicrophone();
             }
-            catch (Exception ex)
-            {
+            catch (Exception ex) {
                 Debug.WriteLine($"Ошибка инициализации: {ex.Message}");
             }
         }
 
-        private void InitializePorcupine()
-        {
+        private void InitializePorcupine() {
             _porcupine = Porcupine.FromBuiltInKeywords(_porcupineApiKey,
                 new List<BuiltInKeyword> { BuiltInKeyword.PICOVOICE },
                 sensitivities: new List<float> { 0.7f });
@@ -68,10 +64,8 @@ namespace Jarvis.Services {
             Debug.WriteLine("Porcupine инициализирован");
         }
 
-        private void InitializeMicrophone()
-        {
-            _microphone = new WaveInEvent
-            {
+        private void InitializeMicrophone() {
+            _microphone = new WaveInEvent {
                 WaveFormat = new WaveFormat(SAMPLE_RATE, 16, 1),
                 BufferMilliseconds = 70
             };
@@ -80,23 +74,18 @@ namespace Jarvis.Services {
 
         public void Start() => _microphone?.StartRecording();
 
-        public void OnAudioData(object? sender, WaveInEventArgs e)
-        {
-            try
-            {
+        public void OnAudioData(object? sender, WaveInEventArgs e) {
+            try {
                 int sampleCount = e.BytesRecorded / 2;
 
-                if (_samplesBuffer.Length < sampleCount)
-                {
+                if (_samplesBuffer.Length < sampleCount) {
                     _samplesBuffer = new short[sampleCount];
                 }
 
                 Buffer.BlockCopy(e.Buffer, 0, _samplesBuffer, 0, e.BytesRecorded);
 
-                if (_isAwake && _lastCommandTime != DateTime.MinValue && !_isSpeaking && !_isSending)
-                {
-                    if ((DateTime.Now - _lastCommandTime).TotalMilliseconds > SLEEP_TIMEOUT_MS)
-                    {
+                if (_isAwake && _lastCommandTime != DateTime.MinValue && !_isSpeaking && !_isSending) {
+                    if ((DateTime.Now - _lastCommandTime).TotalMilliseconds > SLEEP_TIMEOUT_MS) {
                         _isAwake = false;
                         _wakeWordBuffer.Clear();
                         Debug.WriteLine("😴 Ассистент уснул (таймаут)");
@@ -104,41 +93,34 @@ namespace Jarvis.Services {
                     }
                 }
 
-                if (!_isAwake && _porcupine != null)
-                {
+                if (!_isAwake && _porcupine != null) {
                     ProcessWakeWord(_samplesBuffer.AsSpan(0, sampleCount));
                 }
 
-                if (_isAwake)
-                {
+                if (_isAwake) {
                     ProcessSpeech(_samplesBuffer.AsSpan(0, sampleCount), e.Buffer, e.BytesRecorded);
                 }
             }
-            catch (Exception ex)
-            {
+            catch (Exception ex) {
                 Debug.WriteLine($"Ошибка в OnAudioData: {ex.Message}");
             }
         }
 
         public void ProcessWakeWord(ReadOnlySpan<short> samples) {
-            if (_porcupine == null) 
+            if (_porcupine == null)
                 return;
 
-            foreach (var sample in samples)
-            {
+            foreach (var sample in samples) {
                 _wakeWordBuffer.Add(sample);
             }
 
-            while (_wakeWordBuffer.Count >= _porcupineFrameLength)
-            {
-                for (int i = 0; i < _porcupineFrameLength; i++)
-                {
+            while (_wakeWordBuffer.Count >= _porcupineFrameLength) {
+                for (int i = 0; i < _porcupineFrameLength; i++) {
                     _frameCache[i] = _wakeWordBuffer[i];
                 }
                 _wakeWordBuffer.RemoveRange(0, _porcupineFrameLength);
 
-                if (_porcupine.Process(_frameCache) >= 0)
-                {
+                if (_porcupine.Process(_frameCache) >= 0) {
                     _isAwake = true;
                     _lastCommandTime = DateTime.MinValue;
                     _wakeWordBuffer.Clear();
@@ -149,48 +131,37 @@ namespace Jarvis.Services {
             }
         }
 
-        public void ProcessSpeech(ReadOnlySpan<short> samples, byte[] rawBuffer, int bytesRecorded)
-        {
-            if (_floatSamplesCache.Length < samples.Length)
-            {
+        public void ProcessSpeech(ReadOnlySpan<short> samples, byte[] rawBuffer, int bytesRecorded) {
+            if (_floatSamplesCache.Length < samples.Length) {
                 _floatSamplesCache = new float[samples.Length];
             }
 
-            for (int i = 0; i < samples.Length; i++)
-            {
+            for (int i = 0; i < samples.Length; i++) {
                 _floatSamplesCache[i] = samples[i] / 32768f;
             }
 
-            lock (_audioBufferLock)
-            {
-                for (int i = 0; i < samples.Length; i++)
-                {
+            lock (_audioBufferLock) {
+                for (int i = 0; i < samples.Length; i++) {
                     _audioBuffer.Add(_floatSamplesCache[i]);
                 }
 
-                if (_audioBuffer.Count > SAMPLE_RATE * MAX_BUFFER_SECONDS)
-                {
+                if (_audioBuffer.Count > SAMPLE_RATE * MAX_BUFFER_SECONDS) {
                     _audioBuffer.RemoveRange(0, _audioBuffer.Count - SAMPLE_RATE * MAX_BUFFER_SECONDS);
                 }
             }
 
             bool hasRecentSpeech = DetectRecentSpeech();
 
-            if (hasRecentSpeech)
-            {
-                if (!_isSpeaking)
-                {
+            if (hasRecentSpeech) {
+                if (!_isSpeaking) {
                     _isSpeaking = true;
                     _currentSpeech = new MemoryStream();
 
                     int preRollSamples = (PRE_ROLL_MS * SAMPLE_RATE) / 1000;
-                    lock (_audioBufferLock)
-                    {
-                        if (_audioBuffer.Count > preRollSamples + bytesRecorded / 2)
-                        {
+                    lock (_audioBufferLock) {
+                        if (_audioBuffer.Count > preRollSamples + bytesRecorded / 2) {
                             int startIndex = _audioBuffer.Count - preRollSamples - bytesRecorded / 2;
-                            for (int i = 0; i < preRollSamples; i++)
-                            {
+                            for (int i = 0; i < preRollSamples; i++) {
                                 short val = (short)(_audioBuffer[startIndex + i] * 32768f);
                                 _currentSpeech.WriteByte((byte)(val & 0xFF));
                                 _currentSpeech.WriteByte((byte)((val >> 8) & 0xFF));
@@ -202,34 +173,29 @@ namespace Jarvis.Services {
                 _currentSpeech?.Write(rawBuffer, 0, bytesRecorded);
                 _lastSpeechTime = DateTime.Now;
             }
-            else if (_isSpeaking && !_isSending)
-            {
+            else if (_isSpeaking && !_isSending) {
                 _currentSpeech?.Write(rawBuffer, 0, bytesRecorded);
 
-                if ((DateTime.Now - _lastSpeechTime).TotalMilliseconds > MIN_SILENCE_MS)
-                {
+                if ((DateTime.Now - _lastSpeechTime).TotalMilliseconds > MIN_SILENCE_MS) {
                     OnProccessingText?.Invoke("PROCESSING");
                     _ = SendSpeechAsync();
                 }
             }
         }
 
-        private bool DetectRecentSpeech()
-        {
+        private bool DetectRecentSpeech() {
             int analyzeSamples;
             float[] recentSamples;
             int bufferCount;
 
-            lock (_audioBufferLock)
-            {
+            lock (_audioBufferLock) {
                 bufferCount = _audioBuffer.Count;
                 if (bufferCount < SAMPLE_RATE) return false;
 
                 analyzeSamples = Math.Min(SAMPLE_RATE * 3, bufferCount);
                 recentSamples = new float[analyzeSamples];
 
-                for (int i = 0; i < analyzeSamples; i++)
-                {
+                for (int i = 0; i < analyzeSamples; i++) {
                     recentSamples[i] = _audioBuffer[bufferCount - analyzeSamples + i];
                 }
             }
@@ -239,17 +205,14 @@ namespace Jarvis.Services {
             if (timestamps.Count == 0) return false;
 
             float currentTimeMs;
-            lock (_audioBufferLock)
-            {
+            lock (_audioBufferLock) {
                 currentTimeMs = (_audioBuffer.Count / (float)SAMPLE_RATE) * 1000;
             }
 
             float bufferStartMs = ((bufferCount - analyzeSamples) / (float)SAMPLE_RATE) * 1000;
 
-            foreach (var ts in timestamps)
-            {
-                if (bufferStartMs + ts.End > currentTimeMs - 500)
-                {
+            foreach (var ts in timestamps) {
+                if (bufferStartMs + ts.End > currentTimeMs - 500) {
                     return true;
                 }
             }
@@ -257,8 +220,7 @@ namespace Jarvis.Services {
             return false;
         }
 
-        public async Task SendSpeechAsync()
-        {
+        public async Task SendSpeechAsync() {
             if (_currentSpeech == null || _currentSpeech.Length == 0)
                 return;
 
@@ -266,31 +228,26 @@ namespace Jarvis.Services {
             MemoryStream? speechToSend = _currentSpeech;
             _currentSpeech = null;
 
-            try
-            {
+            try {
                 speechToSend.Position = 0;
                 var text = await SpeechToTextAsync(speechToSend, SAMPLE_RATE);
 
-                if (!string.IsNullOrEmpty(text))
-                {
+                if (!string.IsNullOrEmpty(text)) {
                     OnSpeechRecognized?.Invoke(text);
                     _lastCommandTime = DateTime.Now;
                 }
             }
-            catch (Exception ex)
-            {
+            catch (Exception ex) {
                 Debug.WriteLine($"Ошибка отправки команды: {ex}");
             }
-            finally
-            {
+            finally {
                 _isSpeaking = false;
                 _isSending = false;
                 speechToSend?.Dispose();
             }
         }
 
-        public async Task<string> SpeechToTextAsync(MemoryStream stream, int sample_rate)
-        {
+        public async Task<string> SpeechToTextAsync(MemoryStream stream, int sample_rate) {
             if (stream == null || stream.Length == 0)
                 return "";
 
@@ -305,7 +262,7 @@ namespace Jarvis.Services {
             using var process = factory.CreateBuilder().WithLanguage("auto").Build();
             var resultBuilder = "";
 
-            await foreach (var item in process.ProcessAsync(stream))
+            await foreach (var item in process.ProcessAsync(wavStream))
                 resultBuilder += item.Text;
             resultBuilder = resultBuilder.Trim();
 
@@ -315,8 +272,7 @@ namespace Jarvis.Services {
             return resultBuilder;
         }
 
-        private void WriteWavHeader(Stream stream, int dataLength, int rate)
-        {
+        private void WriteWavHeader(Stream stream, int dataLength, int rate) {
             using var writer = new BinaryWriter(stream, Encoding.UTF8, true);
             writer.Write(Encoding.UTF8.GetBytes("RIFF"));
             writer.Write(dataLength + 36);
@@ -333,8 +289,7 @@ namespace Jarvis.Services {
             writer.Write(dataLength);
         }
 
-        public void Dispose()
-        {
+        public void Dispose() {
             _microphone?.Dispose();
             _porcupine?.Dispose();
             _currentSpeech?.Dispose();
