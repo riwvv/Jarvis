@@ -1,11 +1,8 @@
-﻿using Microsoft.Extensions.AI;
+﻿using Microsoft.Extensions.DependencyInjection;
 using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.ChatCompletion;
 using Microsoft.SemanticKernel.Connectors.OpenAI;
-using System;
-using System.Collections.Generic;
 using System.Diagnostics;
-using System.Text;
 
 namespace Jarvis.Services {
     public class CommunicationAiService {
@@ -15,11 +12,13 @@ namespace Jarvis.Services {
         private readonly IChatCompletionService _chat;
         private readonly ChatHistory _history;
         private readonly OpenAIPromptExecutionSettings _settings;
-        private readonly Kernel _kernel;
         private bool _isProcessing;
 
-        public CommunicationAiService(Kernel kernel) {
-            _kernel = kernel;
+        private readonly Kernel _kernel;
+        private readonly IServiceProvider _serviceProvider;
+        public CommunicationAiService(IServiceProvider serviceProvider) {
+            _serviceProvider = serviceProvider;
+            _kernel = _serviceProvider.GetRequiredService<Kernel>();
             _chat = _kernel.GetRequiredService<IChatCompletionService>();
             _isProcessing = false;
             _history = new();
@@ -34,6 +33,7 @@ namespace Jarvis.Services {
             "ERROR - не можешь выполнить команду или команда вызвала исключение;" +
             "Запомни, ты можешь отвечать МАКСИМАЛЬНО КРАТКИМ текстом (1-2 предложения), но каждый ответ обязан начинаться на одно из этих слов по ситуации");
         }
+
         public IReadOnlyList<ChatMessageContent> GetChatHistory() {
             return _history.AsReadOnly();
         }
@@ -56,13 +56,10 @@ namespace Jarvis.Services {
                 OnExecute?.Invoke("EXECUTE");
                 Debug.WriteLine($"Отправка запроса: {userQuery}");
 
-                // Добавляем сообщение пользователя в историю
                 _history.AddUserMessage(userQuery);
 
-                // Проверяем отмену перед запросом
                 cancellationToken.ThrowIfCancellationRequested();
 
-                // Получаем ответ от модели
                 var response = await _chat.GetChatMessageContentAsync(
                     _history,
                     _settings,
@@ -72,14 +69,12 @@ namespace Jarvis.Services {
                 if (response != null && !string.IsNullOrEmpty(response.Content)) {
                     _history.AddAssistantMessage(response.Content);
 
-                    // Оповещаем об успешном результате
                     OnResult?.Invoke("DONE");
                     Debug.WriteLine($"Получен ответ: {response.Content}");
 
                     return response.Content;
                 }
 
-                // Пустой ответ
                 OnResult?.Invoke("ERROR: Модель вернула пустой ответ");
                 return null;
             }
