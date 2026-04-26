@@ -13,21 +13,32 @@ public partial class MainViewModel : ObservableObject, IDisposable {
     private Window _window = Application.Current.MainWindow;
 
     [ObservableProperty] private string _state = "SLEEP";
-    
 
-    [ObservableProperty] private ContextMenu _contextMenu = new();
+    private readonly SpeechToTextService _speechToTextService;
+    private readonly CommunicationAiService _communicationAiService;
 
-    [ObservableProperty] private MenuItem _openMenu = new();
-    [ObservableProperty] private MenuItem _exitMenu = new();
-
-    
-
-    public MainViewModel() {
-        OpenMenu.Header = "Открыть";
-        OpenMenu.Click += (s, e) => Show();
-
-        ExitMenu.Header = "Выход";
-        ExitMenu.Click += (s, e) => Closing();
+    public MainViewModel(SpeechToTextService speechToTextService, CommunicationAiService communicationAiService) {
+        _speechToTextService = speechToTextService;
+        _communicationAiService = communicationAiService;
+        _speechToTextService.OnSpeechRecognized += async (text) => {
+            if (!string.IsNullOrWhiteSpace(text)) {
+                try {
+                    await _communicationAiService.GetRequestUser(text);
+                }
+                catch (Exception ex) {
+                    Debug.WriteLine($"Ошибка: {ex.Message}");
+                }
+            }
+        }; // отправка запроса к AI
+        _speechToTextService.OnWakeUp += (text) => State = text; // проснулся|слушает
+        _speechToTextService.OnProccessingText += (text) => State = text; // обрабатывает (Speech => Text)
+        _communicationAiService.OnExecute += (text) => State = text; // выполняет
+        _communicationAiService.OnResult += (text) => State = text; // результат (Done|Warning|Error)
+        _speechToTextService.OnTimeout += async (text) => {
+            State = text;
+            await Task.Delay(2000);
+            State = "SLEEP";
+        }; // уснул
 
         ContextMenu.Items.Add(OpenMenu);
         ContextMenu.Items.Add(ExitMenu);
