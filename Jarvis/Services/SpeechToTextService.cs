@@ -1,15 +1,10 @@
-﻿using NAudio.CoreAudioApi;
-using NAudio.Wave;
-using SileroVad;
+﻿using NAudio.Wave;
 using System.Diagnostics;
 using System.IO;
-using System.Text;
 using Vosk;
 
-namespace Jarvis.Services
-{
-    public class SpeechToTextService : IDisposable
-    {
+namespace Jarvis.Services {
+    public class SpeechToTextService : IDisposable {
         private const int SAMPLE_RATE = 16000;
         private const int CHANNELS = 1;
         private const int BUFFER_MS = 100;
@@ -41,8 +36,7 @@ namespace Jarvis.Services
         public event Action<string>? OnTimeout;        // Уснул (таймаут)
 
         // Состояния
-        private enum RecognizerState
-        {
+        private enum RecognizerState {
             Sleeping,    // Спит, ждёт wake word
             Listening,   // Проснулся, слушает команду
             Processing   // Обрабатывает речь
@@ -57,142 +51,130 @@ namespace Jarvis.Services
         // NAudio
         private WaveInEvent? _microphone;
         private readonly object _lockObject = new();
+        private readonly object _micLock = new(); // Дополнительная блокировка для микрофона
 
         // Таймаут бездействия (10 секунд)
         private Timer? _inactivityTimer;
         private const int INACTIVITY_TIMEOUT_MS = 10000;
 
-        public SpeechToTextService()
-        {
+        public SpeechToTextService() {
             InitializeVosk();
             InitializeMicrophone();
         }
 
-        private void InitializeVosk()
-        {
-            try
-            {
-                // Указываем путь к модели
-                string modelPath = Path.GetFullPath(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "..", "..", "Models", "vosk-model-ru-0.22"));
+        private void InitializeVosk() {
+            try {
+                // Путь к модели внутри проекта (относительно корня проекта)
+                // Вариант 1: модель в папке "Models" в корне проекта
+                // Поднимаемся до корня проекта (через bin/Debug/net8.0/ -> в корень)
+                string modelPath = Path.GetFullPath(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "..", "..", "Models", "vosk-model-ru-0.42"));
 
-                if (!Directory.Exists(modelPath))
-                {
-                    throw new DirectoryNotFoundException($"Vosk модель не найдена по пути: {modelPath}");
+                if (!Directory.Exists(modelPath)) {
+                    // Пробуем альтернативный путь (возможно, модель в папке с проектом)
+                    string alternativePath = Path.GetFullPath(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Models", "vosk-model-ru-0.42"));
+                    if (Directory.Exists(alternativePath)) {
+                        modelPath = alternativePath;
+                    }
+                    else {
+                        throw new DirectoryNotFoundException($"Vosk модель не найдена. Проверьте пути:\n{modelPath}\n{alternativePath}");
+                    }
                 }
 
+                Debug.WriteLine($"Загрузка модели Vosk из: {modelPath}");
                 _model = new Model(modelPath);
 
                 // 1. Wake Word распознаватель (грамматический режим — лёгкий и быстрый)
-                var wakeGrammar = new List<string>(_wakeWordVariants);
-                wakeGrammar.AddRange(_instantCommands);
-                wakeGrammar.Add("[unk]"); // Важно: добавляем [unk] для стабильности
-
-                string grammarJson = System.Text.Json.JsonSerializer.Serialize(wakeGrammar);
+                string grammarJson = BuildWakeWordGrammar();
 
                 // ✅ Передаём грамматику в конструктор
                 _wakeWordRecognizer = new VoskRecognizer(_model, SAMPLE_RATE, grammarJson);
 
-                // Включите частичные результаты для wake word распознавателя, если нужно
-                // _wakeWordRecognizer.SetPartialWords(true); // Опционально
-
                 // 2️⃣ Командный распознаватель - без грамматики (общий режим)
                 _commandRecognizer = new VoskRecognizer(_model, SAMPLE_RATE);
-                // _commandRecognizer.SetMaxAlternatives(0); // Необязательные настройки
-                // _commandRecognizer.SetWords(false);
 
                 Debug.WriteLine($"Vosk инициализирован. Wake word грамматика: {grammarJson}");
             }
-            catch (Exception ex)
-            {
+            catch (Exception ex) {
                 Debug.WriteLine($"Ошибка инициализации Vosk: {ex.Message}");
                 throw;
             }
         }
 
-        private string BuildWakeWordGrammar()
-        {
-            // Собираем все варианты пробуждения
+        private string BuildWakeWordGrammar() {
+            // Собираем все варианты пробуждения и мгновенные команды
             var allWakeVariants = new List<string>(_wakeWordVariants);
             allWakeVariants.AddRange(_instantCommands);
 
             // Добавляем [unk] — обязательный элемент, чтобы распознаватель не "зависал"
-            // Если его не добавить, Vosk может перестать реагировать на нераспознанные слова [citation:2][citation:7]
+            // Если его не добавить, Vosk может перестать реагировать на нераспознанные слова
             var entries = allWakeVariants.Select(v => $"\"{v}\"").ToList();
             entries.Add("\"[unk]\"");
 
             return $"[{string.Join(", ", entries)}]";
         }
 
-        private void InitializeMicrophone()
-        {
-            _microphone = new WaveInEvent
-            {
+        private void InitializeMicrophone() {
+            _microphone = new WaveInEvent {
                 WaveFormat = new WaveFormat(SAMPLE_RATE, CHANNELS),
                 BufferMilliseconds = BUFFER_MS
             };
             _microphone.DataAvailable += OnAudioDataAvailable;
             _microphone.RecordingStopped += OnRecordingStopped;
         }
-        private void OnRecordingStopped(object? sender, StoppedEventArgs e)
-        {
-            _isRecording = false;
-            Debug.WriteLine("Запись микрофона остановлена");
+
+        private void OnRecordingStopped(object? sender, StoppedEventArgs e) {
+            lock (_micLock) {
+                _isRecording = false;
+                Debug.WriteLine("Запись микрофона остановлена");
+            }
         }
 
-        private void StartListening()
-        {
-            if (_microphone == null)
-            {
+        private void StartListening() {
+            if (_microphone == null) {
                 Debug.WriteLine("Микрофон не инициализирован");
                 return;
             }
 
-            if (_isRecording)
-            {
-                Debug.WriteLine("Микрофон уже записывает, пропускаем запуск");
-                return;
-            }
+            lock (_micLock) {
+                if (_isRecording) {
+                    Debug.WriteLine("Микрофон уже записывает, пропускаем запуск");
+                    return;
+                }
 
-            try
-            {
-                _microphone.StartRecording();
-                _isRecording = true;
-                ResetInactivityTimer();
-                Debug.WriteLine("Микрофон запущен");
-            }
-            catch (InvalidOperationException ex)
-            {
-                Debug.WriteLine($"Микрофон уже записывает: {ex.Message}");
-                // Пытаемся остановить и запустить заново
-                StopListening();
-                Thread.Sleep(100);
-                _microphone.StartRecording();
-                _isRecording = true;
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine($"Ошибка запуска микрофона: {ex.Message}");
+                try {
+                    _microphone.StartRecording();
+                    _isRecording = true;
+                    ResetInactivityTimer();
+                    Debug.WriteLine("Микрофон запущен");
+                }
+                catch (InvalidOperationException ex) {
+                    Debug.WriteLine($"Микрофон уже записывает: {ex.Message}");
+                    // Пытаемся остановить и запустить заново
+                    StopListening();
+                    Thread.Sleep(100);
+                    _microphone.StartRecording();
+                    _isRecording = true;
+                }
+                catch (Exception ex) {
+                    Debug.WriteLine($"Ошибка запуска микрофона: {ex.Message}");
+                }
             }
         }
 
-        public void StopListening()
-        {
-            if (_microphone != null && _isRecording)
-            {
-                _microphone.StopRecording();
-                // Не устанавливаем _isRecording = false здесь,
-                // это сделает OnRecordingStopped
+        public void StopListening() {
+            lock (_micLock) {
+                if (_microphone != null && _isRecording) {
+                    _microphone.StopRecording();
+                    // _isRecording сбросится в OnRecordingStopped
+                }
             }
         }
 
-        private void OnAudioDataAvailable(object? sender, WaveInEventArgs e)
-        {
-            lock (_lockObject)
-            {
+        private void OnAudioDataAvailable(object? sender, WaveInEventArgs e) {
+            lock (_lockObject) {
                 byte[] audioData = e.Buffer.Take(e.BytesRecorded).ToArray();
 
-                switch (_state)
-                {
+                switch (_state) {
                     case RecognizerState.Sleeping:
                         ProcessWakeWordDetection(audioData);
                         break;
@@ -205,21 +187,18 @@ namespace Jarvis.Services
             }
         }
 
-        private void ProcessWakeWordDetection(byte[] audioData)
-        {
+        private void ProcessWakeWordDetection(byte[] audioData) {
             if (_wakeWordRecognizer == null) return;
 
-            if (_wakeWordRecognizer.AcceptWaveform(audioData, audioData.Length))
-            {
+            if (_wakeWordRecognizer.AcceptWaveform(audioData, audioData.Length)) {
                 string result = _wakeWordRecognizer.Result();
                 string recognizedText = ExtractTextFromResult(result);
 
-                // Нормализуем текст (убираем пробелы для сравнения) [citation:2]
+                // Нормализуем текст (убираем пробелы для сравнения)
                 string normalized = NormalizeText(recognizedText);
 
                 // Проверяем, является ли распознанное слово wake word
-                if (IsWakeWordMatch(normalized))
-                {
+                if (IsWakeWordMatch(normalized)) {
                     // Просыпаемся!
                     _state = RecognizerState.Listening;
                     OnWakeUp?.Invoke("LISTENING");
@@ -230,32 +209,27 @@ namespace Jarvis.Services
                     _commandRecognizer?.Reset();
                 }
                 // Проверяем мгновенные команды (даже в спящем режиме)
-                else if (_instantCommands.Any(cmd => normalized.Contains(NormalizeText(cmd))))
-                {
+                else if (_instantCommands.Any(cmd => normalized.Contains(NormalizeText(cmd)))) {
                     OnSpeechRecognized?.Invoke(recognizedText);
-                    OnTimeout?.Invoke("SLEEP");
+                    GoToSleep();
                     Debug.WriteLine($"Мгновенная команда: {recognizedText}");
                 }
             }
         }
 
-        private void ProcessCommandRecognition(byte[] audioData)
-        {
+        private void ProcessCommandRecognition(byte[] audioData) {
             if (_commandRecognizer == null) return;
 
-            if (_state == RecognizerState.Listening)
-            {
+            if (_state == RecognizerState.Listening) {
                 _state = RecognizerState.Processing;
                 OnProcessingText?.Invoke("PROCESSING");
             }
 
-            if (_commandRecognizer.AcceptWaveform(audioData, audioData.Length))
-            {
+            if (_commandRecognizer.AcceptWaveform(audioData, audioData.Length)) {
                 string result = _commandRecognizer.Result();
                 string recognizedText = ExtractTextFromResult(result);
 
-                if (!string.IsNullOrWhiteSpace(recognizedText))
-                {
+                if (!string.IsNullOrWhiteSpace(recognizedText)) {
                     ResetInactivityTimer();
                     OnSpeechRecognized?.Invoke(recognizedText);
                     Debug.WriteLine($"Команда распознана: {recognizedText}");
@@ -264,14 +238,12 @@ namespace Jarvis.Services
                     GoToSleep();
                 }
             }
-            else
-            {
+            else {
                 // Частичный результат — можно использовать для отображения в реальном времени
                 string partialResult = _commandRecognizer.PartialResult();
                 string partialText = ExtractPartialText(partialResult);
 
-                if (!string.IsNullOrWhiteSpace(partialText))
-                {
+                if (!string.IsNullOrWhiteSpace(partialText)) {
                     // Опционально: отправляем частичный результат для отображения
                     // OnPartialResult?.Invoke(partialText);
                     Debug.WriteLine($"Частичный результат: {partialText}");
@@ -279,38 +251,34 @@ namespace Jarvis.Services
             }
         }
 
-        private void GoToSleep()
-        {
-            _state = RecognizerState.Sleeping;
-            _commandRecognizer?.Reset();
-            OnTimeout?.Invoke("SLEEP");
-            Debug.WriteLine("Jarvis уснул");
+        private void GoToSleep() {
+            if (_state != RecognizerState.Sleeping) {
+                _state = RecognizerState.Sleeping;
+                _commandRecognizer?.Reset();
+                OnTimeout?.Invoke("SLEEP");
+                Debug.WriteLine("Jarvis уснул");
+            }
         }
 
-        private void ResetInactivityTimer()
-        {
-            _inactivityTimer?.Dispose();
-            _inactivityTimer = new Timer(_ =>
-            {
-                lock (_lockObject)
-                {
-                    if (_state != RecognizerState.Sleeping)
-                    {
-                        Debug.WriteLine("Таймаут бездействия, переход в режим сна");
-                        GoToSleep();
+        private void ResetInactivityTimer() {
+            lock (_lockObject) {
+                _inactivityTimer?.Dispose();
+                _inactivityTimer = new Timer(_ => {
+                    lock (_lockObject) {
+                        if (_state != RecognizerState.Sleeping) {
+                            Debug.WriteLine("Таймаут бездействия, переход в режим сна");
+                            GoToSleep();
+                        }
                     }
-                }
-            }, null, INACTIVITY_TIMEOUT_MS, Timeout.Infinite);
+                }, null, INACTIVITY_TIMEOUT_MS, Timeout.Infinite);
+            }
         }
 
-        private string ExtractTextFromResult(string result)
-        {
-            try
-            {
+        private string ExtractTextFromResult(string result) {
+            try {
                 // Vosk возвращает JSON: {"text": "распознанный текст"}
                 var json = System.Text.Json.JsonDocument.Parse(result);
-                if (json.RootElement.TryGetProperty("text", out var textProp))
-                {
+                if (json.RootElement.TryGetProperty("text", out var textProp)) {
                     return textProp.GetString() ?? string.Empty;
                 }
             }
@@ -318,13 +286,10 @@ namespace Jarvis.Services
             return string.Empty;
         }
 
-        private string ExtractPartialText(string partialResult)
-        {
-            try
-            {
+        private string ExtractPartialText(string partialResult) {
+            try {
                 var json = System.Text.Json.JsonDocument.Parse(partialResult);
-                if (json.RootElement.TryGetProperty("partial", out var partialProp))
-                {
+                if (json.RootElement.TryGetProperty("partial", out var partialProp)) {
                     return partialProp.GetString() ?? string.Empty;
                 }
             }
@@ -332,8 +297,7 @@ namespace Jarvis.Services
             return string.Empty;
         }
 
-        private string NormalizeText(string text)
-        {
+        private string NormalizeText(string text) {
             if (string.IsNullOrEmpty(text)) return string.Empty;
 
             return text
@@ -343,8 +307,7 @@ namespace Jarvis.Services
                 .Trim();
         }
 
-        private bool IsWakeWordMatch(string normalizedText)
-        {
+        private bool IsWakeWordMatch(string normalizedText) {
             string normalizedWakeWord = NormalizeText(WAKE_WORD);
             if (normalizedText == normalizedWakeWord) return true;
 
@@ -352,21 +315,23 @@ namespace Jarvis.Services
                 NormalizeText(variant) == normalizedText);
         }
 
-        public void Start()
-        {
+        public void Start() {
             StartListening();
         }
 
-        public void Dispose()
-        {
+        public void Dispose() {
             StopListening();
-            _inactivityTimer?.Dispose();
 
-            if (_microphone != null)
-            {
+            lock (_lockObject) {
+                _inactivityTimer?.Dispose();
+                _inactivityTimer = null;
+            }
+
+            if (_microphone != null) {
                 _microphone.DataAvailable -= OnAudioDataAvailable;
                 _microphone.RecordingStopped -= OnRecordingStopped;
                 _microphone.Dispose();
+                _microphone = null;
             }
 
             _wakeWordRecognizer?.Dispose();
