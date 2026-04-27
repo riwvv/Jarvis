@@ -25,7 +25,7 @@ public partial class MainViewModel : ObservableObject, IDisposable {
         }; // отправка запроса к AI
 
         _speechToTextService.OnWakeUp += (text) => State = text; // проснулся|слушает
-        _speechToTextService.OnProccessingText += (text) => State = text; // обрабатывает (Speech => Text)
+        _speechToTextService.OnProcessingText += (text) => State = text; // обрабатывает (Speech => Text)
         _communicationAiService.OnExecute += (text) => State = text; // выполняет
         _communicationAiService.OnResult += (text) => State = text; // результат (Done|Warning|Error)
         _speechToTextService.OnTimeout += async (text) => {
