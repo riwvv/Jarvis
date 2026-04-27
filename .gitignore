@@ -361,3 +361,14 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
+
+# Игнорируем Vosk модели (большие файлы)
+Jarvis/Models/vosk-model-*/
+Jarvis/Models/vosk-model-*
+Jarvis/Models/*.zip
+Jarvis/Models/*.gz
+
+!Jarvis/Models/.gitkeep
+
+appsettings.Development.json
+appsettings.Production.json
