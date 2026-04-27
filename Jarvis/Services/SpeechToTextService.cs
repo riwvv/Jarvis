@@ -73,7 +73,7 @@ namespace Jarvis.Services
             try
             {
                 // Указываем путь к модели
-                string modelPath = "vosk-model-ru-0.22";
+                string modelPath = Path.GetFullPath(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "..", "..", "Models", "vosk-model-ru-0.22"));
 
                 if (!Directory.Exists(modelPath))
                 {
