@@ -30,8 +30,6 @@ public class ApplicationPlugin
         "Service Pack"
     ];
 
-    // ========== ПУБЛИЧНЫЕ МЕТОДЫ ДЛЯ НЕЙРОСЕТИ ==========
-
     [KernelFunction]
     [Description("Запускает приложение по названию. Сканирует реестр один раз при первом обращении")]
     public async Task<string> LaunchApp(
@@ -83,8 +81,6 @@ public class ApplicationPlugin
             return $"Ошибка создания файла: {ex.Message}";
         }
     }
-
-    // ========== ПРИВАТНЫЕ МЕТОДЫ ==========
 
     private async Task ScanSystemAsync()
     {
