@@ -1,4 +1,6 @@
-﻿using NAudio.Wave;
+﻿using Jarvis.Configuration;
+using Microsoft.Extensions.Options;
+using NAudio.Wave;
 using System.Diagnostics;
 using System.IO;
 using Vosk;
@@ -10,7 +12,7 @@ namespace Jarvis.Services {
         public event Action<string>? OnSpeechRecognized; // Команда распознана
         public event Action<string>? OnTimeout;          // Уснул (таймаут)
         
-        private const int SAMPLE_RATE = 16000;
+        private int SAMPLE_RATE;
         private const int CHANNELS = 1;
         private const int BUFFER_MS = 100;
 
@@ -47,7 +49,11 @@ namespace Jarvis.Services {
         private Timer? _inactivityTimer;
         private const int INACTIVITY_TIMEOUT_MS = 10000;
 
-        public SpeechToTextService() {
+        private readonly SpeechSettings _settings;
+
+        public SpeechToTextService(IOptions<SpeechSettings> settings) {
+            _settings = settings.Value;
+            SAMPLE_RATE = _settings.SttSampleRate;
             InitializeVosk();
             InitializeMicrophone();
         }
@@ -55,11 +61,11 @@ namespace Jarvis.Services {
         private void InitializeVosk() {
             try {
                 // Путь к модели Vosk 0.42 внутри проекта
-                string modelPath = Path.GetFullPath(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "..", "..", "Models", "vosk-model-ru-0.42"));
+                string modelPath = Path.GetFullPath(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "..", "..", _settings.SttModelPath));
 
                 if (!Directory.Exists(modelPath)) {
                     // Пробуем альтернативный путь
-                    string alternativePath = Path.GetFullPath(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Models", "vosk-model-ru-0.42"));
+                    string alternativePath = Path.GetFullPath(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, _settings.SttModelPath));
                     if (Directory.Exists(alternativePath)) {
                         modelPath = alternativePath;
                     }
