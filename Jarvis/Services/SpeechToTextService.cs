@@ -180,6 +180,7 @@ namespace Jarvis.Services {
                 string normalized = NormalizeText(recognizedText);
 
                 if (IsWakeWordMatch(normalized)) {
+                    ((App)App.Current).OnVoiceWakeWord();
                     _state = RecognizerState.Listening;
                     OnWakeUp?.Invoke("LISTENING");
                     ResetInactivityTimer();
