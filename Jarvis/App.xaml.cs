@@ -37,6 +37,7 @@ public partial class App : Application {
         _host = Host.CreateDefaultBuilder().ConfigureServices((context, services) => {
             services.AddSingleton(KernelCore!);
             services.AddSingleton<SpeechToTextService>();
+            services.AddSingleton<TextToSpeechService>();
             services.AddSingleton<CommunicationAiService>();
 
             services.AddSingleton<MainViewModel>();

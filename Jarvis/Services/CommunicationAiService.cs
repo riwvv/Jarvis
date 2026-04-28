@@ -6,7 +6,7 @@ using Microsoft.SemanticKernel.Connectors.OpenAI;
 using System.Diagnostics;
 
 namespace Jarvis.Services {
-    public class CommunicationAiService {
+    public class CommunicationAiService : IDisposable {
         public event Action<string>? OnExecute;
         public event Action<string>? OnResult;
 
@@ -14,7 +14,7 @@ namespace Jarvis.Services {
         private readonly ChatHistory _history;
         private readonly OpenAIPromptExecutionSettings _settings;
         private readonly Kernel _kernel;
-        private bool _isProcessing;
+        private readonly SemaphoreSlim _semaphore = new(1, 1); // Потокобезопасность
 
         private readonly IServiceProvider _serviceProvider;
 
@@ -29,18 +29,18 @@ namespace Jarvis.Services {
                 MaxTokens = 1024
             };
 
-            _history.AddSystemMessage("Всегда на русском языке. Так же следуй правилу: каждый твой ответ должен начинаться на слово-состояние результата выполнения команды:" +
-            "DONE - успешно выполнил команду;" +
-            "WARNING - возникли небольшие проблемы или нужно уточнение;" +
-            "ERROR - не можешь выполнить команду или команда вызвала исключение;" +
-            "Запомни, ты можешь отвечать МАКСИМАЛЬНО КРАТКИМ текстом (1-2 предложения), но каждый ответ обязан начинаться на одно из этих слов по ситуации");
-
-            _isProcessing = false;
+            _history.AddSystemMessage(
+                "Всегда на русском языке. Так же следуй правилу: каждый твой ответ должен начинаться на слово-состояние результата выполнения команды:" +
+                "DONE - успешно выполнил команду;" +
+                "WARNING - возникли небольшие проблемы или нужно уточнение;" +
+                "ERROR - не можешь выполнить команду или команда вызвала исключение;" +
+                "Запомни, ты можешь отвечать МАКСИМАЛЬНО КРАТКИМ текстом (1-2 предложения), но каждый ответ обязан начинаться на одно из этих слов по ситуации"
+            );
         }
+
         public IReadOnlyList<ChatMessageContent> GetChatHistory() {
             return _history.AsReadOnly();
         }
-
 
         public async Task<string?> GetRequestUser(string userQuery, CancellationToken cancellationToken = default) {
             if (string.IsNullOrWhiteSpace(userQuery)) {
@@ -48,16 +48,15 @@ namespace Jarvis.Services {
                 return null;
             }
 
-            if (_isProcessing) {
+            // Потокобезопасная проверка на выполнение другого запроса
+            if (!await _semaphore.WaitAsync(0, cancellationToken)) {
                 OnResult?.Invoke("WARNING: Предыдущий запрос еще обрабатывается");
                 return null;
             }
 
-            _isProcessing = true;
-
             try {
                 OnExecute?.Invoke("EXECUTE");
-                Debug.WriteLine($"Отправка запроса: {userQuery}");
+                Debug.WriteLine($"Отправка запроса к AI: {userQuery}");
 
                 _history.AddUserMessage(userQuery);
 
@@ -72,9 +71,11 @@ namespace Jarvis.Services {
                 if (response != null && !string.IsNullOrEmpty(response.Content)) {
                     _history.AddAssistantMessage(response.Content);
 
-                    OnResult?.Invoke("DONE");
-                    Debug.WriteLine($"Получен ответ: {response.Content}");
+                    // Извлекаем статус из ответа
+                    string status = ExtractStatusFromResponse(response.Content);
+                    OnResult?.Invoke(status);
 
+                    Debug.WriteLine($"Получен ответ от AI: {response.Content}");
                     return response.Content;
                 }
 
@@ -83,7 +84,7 @@ namespace Jarvis.Services {
             }
             catch (OperationCanceledException) {
                 OnResult?.Invoke("WARNING: Запрос был отменен");
-                Debug.WriteLine("Запрос отменен");
+                Debug.WriteLine("Запрос к AI отменен");
                 return null;
             }
             catch (Exception ex) {
@@ -97,8 +98,25 @@ namespace Jarvis.Services {
                 return null;
             }
             finally {
-                _isProcessing = false;
+                _semaphore.Release();
             }
+        }
+
+        private string ExtractStatusFromResponse(string response) {
+            // Извлекаем статус из начала ответа (DONE, WARNING, ERROR)
+            if (string.IsNullOrEmpty(response)) return "DONE";
+
+            string upperResponse = response.ToUpperInvariant();
+
+            if (upperResponse.StartsWith("DONE")) return "DONE";
+            if (upperResponse.StartsWith("WARNING")) return "WARNING";
+            if (upperResponse.StartsWith("ERROR")) return "ERROR";
+
+            return "DONE"; // По умолчанию
+        }
+
+        public void Dispose() {
+            _semaphore?.Dispose();
         }
     }
 }

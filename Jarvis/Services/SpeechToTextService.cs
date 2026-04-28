@@ -10,30 +10,22 @@ namespace Jarvis.Services {
         private const int BUFFER_MS = 100;
 
         private bool _isRecording = false;
+
         // Wake word настройки
         private const string WAKE_WORD = "джарвис";
         private readonly List<string> _wakeWordVariants = new()
-    {
-        "джарвис",
-        "джарвис ",
-        "джарвиз",
-        "джарвіс"
-    };
-
-        // Команды, которые распознаются сразу без Wake Word
-        private readonly List<string> _instantCommands = new()
-    {
-        "стоп",
-        "выход",
-        "заверши работу",
-        "спать"
-    };
+        {
+            "джарвис",
+            "джарвис ",
+            "джарвиз",
+            "джарвіс"
+        };
 
         // События для взаимодействия с ViewModel
-        public event Action<string>? OnWakeUp;        // Проснулся
-        public event Action<string>? OnProcessingText; // Распознаёт текст
+        public event Action<string>? OnWakeUp;           // Проснулся
+        public event Action<string>? OnProcessingText;   // Распознаёт текст
         public event Action<string>? OnSpeechRecognized; // Команда распознана
-        public event Action<string>? OnTimeout;        // Уснул (таймаут)
+        public event Action<string>? OnTimeout;          // Уснул (таймаут)
 
         // Состояния
         private enum RecognizerState {
@@ -51,7 +43,7 @@ namespace Jarvis.Services {
         // NAudio
         private WaveInEvent? _microphone;
         private readonly object _lockObject = new();
-        private readonly object _micLock = new(); // Дополнительная блокировка для микрофона
+        private readonly object _micLock = new();
 
         // Таймаут бездействия (10 секунд)
         private Timer? _inactivityTimer;
@@ -64,35 +56,31 @@ namespace Jarvis.Services {
 
         private void InitializeVosk() {
             try {
-                // Путь к модели внутри проекта (относительно корня проекта)
-                // Вариант 1: модель в папке "Models" в корне проекта
-                // Поднимаемся до корня проекта (через bin/Debug/net8.0/ -> в корень)
+                // Путь к модели Vosk 0.42 внутри проекта
                 string modelPath = Path.GetFullPath(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "..", "..", "Models", "vosk-model-ru-0.42"));
 
                 if (!Directory.Exists(modelPath)) {
-                    // Пробуем альтернативный путь (возможно, модель в папке с проектом)
+                    // Пробуем альтернативный путь
                     string alternativePath = Path.GetFullPath(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Models", "vosk-model-ru-0.42"));
                     if (Directory.Exists(alternativePath)) {
                         modelPath = alternativePath;
                     }
                     else {
-                        throw new DirectoryNotFoundException($"Vosk модель не найдена. Проверьте пути:\n{modelPath}\n{alternativePath}");
+                        throw new DirectoryNotFoundException($"Vosk модель 0.42 не найдена. Проверьте пути:\n{modelPath}\n{alternativePath}");
                     }
                 }
 
-                Debug.WriteLine($"Загрузка модели Vosk из: {modelPath}");
+                Debug.WriteLine($"Загрузка модели Vosk 0.42 из: {modelPath}");
                 _model = new Model(modelPath);
 
-                // 1. Wake Word распознаватель (грамматический режим — лёгкий и быстрый)
+                // 1. Wake Word распознаватель (грамматический режим)
                 string grammarJson = BuildWakeWordGrammar();
-
-                // ✅ Передаём грамматику в конструктор
                 _wakeWordRecognizer = new VoskRecognizer(_model, SAMPLE_RATE, grammarJson);
 
-                // 2️⃣ Командный распознаватель - без грамматики (общий режим)
+                // 2. Командный распознаватель - без грамматики (общий режим)
                 _commandRecognizer = new VoskRecognizer(_model, SAMPLE_RATE);
 
-                Debug.WriteLine($"Vosk инициализирован. Wake word грамматика: {grammarJson}");
+                Debug.WriteLine($"Vosk 0.42 инициализирован. Wake word грамматика: {grammarJson}");
             }
             catch (Exception ex) {
                 Debug.WriteLine($"Ошибка инициализации Vosk: {ex.Message}");
@@ -101,13 +89,8 @@ namespace Jarvis.Services {
         }
 
         private string BuildWakeWordGrammar() {
-            // Собираем все варианты пробуждения и мгновенные команды
-            var allWakeVariants = new List<string>(_wakeWordVariants);
-            allWakeVariants.AddRange(_instantCommands);
-
-            // Добавляем [unk] — обязательный элемент, чтобы распознаватель не "зависал"
-            // Если его не добавить, Vosk может перестать реагировать на нераспознанные слова
-            var entries = allWakeVariants.Select(v => $"\"{v}\"").ToList();
+            // Только варианты пробуждения + [unk]
+            var entries = _wakeWordVariants.Select(v => $"\"{v}\"").ToList();
             entries.Add("\"[unk]\"");
 
             return $"[{string.Join(", ", entries)}]";
@@ -149,7 +132,6 @@ namespace Jarvis.Services {
                 }
                 catch (InvalidOperationException ex) {
                     Debug.WriteLine($"Микрофон уже записывает: {ex.Message}");
-                    // Пытаемся остановить и запустить заново
                     StopListening();
                     Thread.Sleep(100);
                     _microphone.StartRecording();
@@ -165,7 +147,6 @@ namespace Jarvis.Services {
             lock (_micLock) {
                 if (_microphone != null && _isRecording) {
                     _microphone.StopRecording();
-                    // _isRecording сбросится в OnRecordingStopped
                 }
             }
         }
@@ -193,26 +174,15 @@ namespace Jarvis.Services {
             if (_wakeWordRecognizer.AcceptWaveform(audioData, audioData.Length)) {
                 string result = _wakeWordRecognizer.Result();
                 string recognizedText = ExtractTextFromResult(result);
-
-                // Нормализуем текст (убираем пробелы для сравнения)
                 string normalized = NormalizeText(recognizedText);
 
                 // Проверяем, является ли распознанное слово wake word
                 if (IsWakeWordMatch(normalized)) {
-                    // Просыпаемся!
                     _state = RecognizerState.Listening;
                     OnWakeUp?.Invoke("LISTENING");
                     ResetInactivityTimer();
                     Debug.WriteLine($"Распознан wake word: {recognizedText}");
-
-                    // Очищаем командный распознаватель для новой сессии
                     _commandRecognizer?.Reset();
-                }
-                // Проверяем мгновенные команды (даже в спящем режиме)
-                else if (_instantCommands.Any(cmd => normalized.Contains(NormalizeText(cmd)))) {
-                    OnSpeechRecognized?.Invoke(recognizedText);
-                    GoToSleep();
-                    Debug.WriteLine($"Мгновенная команда: {recognizedText}");
                 }
             }
         }
@@ -233,19 +203,15 @@ namespace Jarvis.Services {
                     ResetInactivityTimer();
                     OnSpeechRecognized?.Invoke(recognizedText);
                     Debug.WriteLine($"Команда распознана: {recognizedText}");
-
-                    // После успешного распознавания команды — засыпаем
                     GoToSleep();
                 }
             }
             else {
-                // Частичный результат — можно использовать для отображения в реальном времени
+                // Частичный результат (опционально)
                 string partialResult = _commandRecognizer.PartialResult();
                 string partialText = ExtractPartialText(partialResult);
 
                 if (!string.IsNullOrWhiteSpace(partialText)) {
-                    // Опционально: отправляем частичный результат для отображения
-                    // OnPartialResult?.Invoke(partialText);
                     Debug.WriteLine($"Частичный результат: {partialText}");
                 }
             }
@@ -276,7 +242,6 @@ namespace Jarvis.Services {
 
         private string ExtractTextFromResult(string result) {
             try {
-                // Vosk возвращает JSON: {"text": "распознанный текст"}
                 var json = System.Text.Json.JsonDocument.Parse(result);
                 if (json.RootElement.TryGetProperty("text", out var textProp)) {
                     return textProp.GetString() ?? string.Empty;
@@ -302,8 +267,8 @@ namespace Jarvis.Services {
 
             return text
                 .ToLowerInvariant()
-                .Replace(" ", "")     // Убираем пробелы
-                .Replace("ё", "е")    // Упрощаем букву ё
+                .Replace(" ", "")
+                .Replace("ё", "е")
                 .Trim();
         }
 
