@@ -10,9 +10,10 @@ using System.Windows;
 namespace Jarvis;
 
 public partial class App : Application {
-    public static Kernel? KernelCore { get; private set; }
     public static IServiceProvider? Services { get; private set; }
+    
     private IHost? _host;
+    private Kernel? _kernelCore;
 
     public App() {
         InitializedSemanticKernel();
@@ -27,15 +28,15 @@ public partial class App : Application {
         builder.Plugins.AddFromType<BrowserPlugin>();
 
         builder.AddOpenAIChatCompletion(modelId: "qwen2.5:7b", endpoint: new Uri("http://localhost:11434/v1"), apiKey: "dummy");
-        KernelCore = builder.Build();
+        _kernelCore = builder.Build();
     }
 
     private void InitializedDI() {
-        if (KernelCore == null)
+        if (_kernelCore == null)
             throw new InvalidOperationException("KernelCore не инициализирован!");
 
         _host = Host.CreateDefaultBuilder().ConfigureServices((context, services) => {
-            services.AddSingleton(KernelCore!);
+            services.AddSingleton(_kernelCore!);
             services.AddSingleton<SpeechToTextService>();
             services.AddSingleton<TextToSpeechService>();
             services.AddSingleton<CommunicationAiService>();

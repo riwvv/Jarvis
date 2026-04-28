@@ -1,7 +1,5 @@
 ﻿using System.Diagnostics;
 using System.Speech.Synthesis;
-using System.Threading;
-using System.Threading.Tasks;
 
 namespace Jarvis.Services {
     public class TextToSpeechService : IDisposable {
