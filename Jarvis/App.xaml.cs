@@ -9,7 +9,6 @@ using Microsoft.SemanticKernel;
 using System.Drawing;
 using System.Windows;
 using System.Windows.Controls;
-using System.Timers;
 using System.IO;
 using Microsoft.Extensions.Configuration;
 using Jarvis.Configuration;
@@ -19,14 +18,14 @@ namespace Jarvis;
 
 public partial class App : Application {
     public static IServiceProvider? Services { get; private set; }
-    
+
     private IHost? _host;
     private Kernel? _kernelCore;
     private IConfiguration? _configuration;
 
-    private TaskbarIcon _trayIcon;
-    private MainWindow _mainWindow;
-    private System.Timers.Timer _autoHideTimer;
+    private TaskbarIcon? _trayIcon;
+    private MainWindow? _mainWindow;
+    private System.Timers.Timer? _autoHideTimer;
     private bool _isAutoMode = true;
 
     public App() {
@@ -58,7 +57,6 @@ public partial class App : Application {
         builder.AddOpenAIChatCompletion(modelId: aiSettings!.ModelId, endpoint: new Uri(aiSettings.Endpoint), apiKey: aiSettings.ApiKey);
         _kernelCore = builder.Build();
     }
-
 
     private void InitializedDI() {
         if (_kernelCore == null)
@@ -95,12 +93,10 @@ public partial class App : Application {
         }
     }
 
-    private void InitializeSystemTray()
-    {
+    private void InitializeSystemTray() {
 
         string iconPath = Path.GetFullPath(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "..", "..", "Images", "JarvisImg.ico"));
-        _trayIcon = new TaskbarIcon
-        {
+        _trayIcon = new TaskbarIcon {
             Icon = new Icon(iconPath),
             ToolTipText = "Jarvis"
         };
@@ -122,57 +118,49 @@ public partial class App : Application {
         contextMenu.Items.Add(exitItem);
 
         _trayIcon.ContextMenu = contextMenu;
-
     }
 
-    private void MainWindow_Closing(object sender, System.ComponentModel.CancelEventArgs e)
-    {
+    private void MainWindow_Closing(object? sender, System.ComponentModel.CancelEventArgs e) {
         e.Cancel = true;
 
         HideToTray();
     }
 
-    private void SetupAutoHideTimer()
-    {
+    private void SetupAutoHideTimer() {
         _autoHideTimer = new System.Timers.Timer(2500);
-        _autoHideTimer.Elapsed += (s, e) =>
-        {
-            Dispatcher.Invoke(() =>
-            {
-                if (_isAutoMode && !_mainWindow.IsActive)
-                {
+        _autoHideTimer.Elapsed += (s, e) => {
+            Dispatcher.Invoke(() => {
+                if (_isAutoMode && !_mainWindow!.IsActive) {
                     HideToTray();
                 }
             });
         };
         _autoHideTimer.AutoReset = false;
     }
-    private void ShowNormalWindow()
-    {
+
+    private void ShowNormalWindow() {
         _isAutoMode = false;
-        _mainWindow.Show();
+        _mainWindow!.Show();
         _mainWindow.WindowState = WindowState.Normal;
         _mainWindow.ShowInTaskbar = true;
         _mainWindow.Topmost = false;
         _mainWindow.Activate();
     }
 
-    private void SetAutoMode()
-    {
+    private void SetAutoMode() {
         _isAutoMode = true;
         HideToTray();
     }
 
-    private void HideToTray()
-    {
-        _mainWindow.Hide();
+    private void HideToTray() {
+        _mainWindow!.Hide();
         _mainWindow.ShowInTaskbar = false;
     }
-    public void ShowAsOverlay()
-    {
+
+    public void ShowAsOverlay() {
         if (!_isAutoMode) return;
 
-        _mainWindow.Show();
+        _mainWindow!.Show();
         _mainWindow.WindowState = WindowState.Normal;
         _mainWindow.Topmost = true;
         _mainWindow.ShowInTaskbar = false;
@@ -181,21 +169,18 @@ public partial class App : Application {
         _mainWindow.Top = SystemParameters.WorkArea.Height - _mainWindow.Height - 20;
 
         _mainWindow.Activate();
-        _autoHideTimer.Start();
+        _autoHideTimer!.Start();
     }
 
-    private void ExitApplication()
-    {
+    private void ExitApplication() {
         _autoHideTimer?.Dispose();
         _trayIcon?.Dispose();
         Shutdown();
     }
 
-    public void OnVoiceWakeWord()
-    {
-        Dispatcher.Invoke(() => ShowAsOverlay());
+    public void OnVoiceWakeWord() {
+        Dispatcher.Invoke(ShowAsOverlay);
     }
-
 
     protected override async void OnStartup(StartupEventArgs e) {
         await _host!.StartAsync();
@@ -206,7 +191,7 @@ public partial class App : Application {
         base.OnStartup(e);
         InitializeSystemTray();
         SetupAutoHideTimer();
-        
+
     }
 
     protected override async void OnExit(ExitEventArgs e) {
