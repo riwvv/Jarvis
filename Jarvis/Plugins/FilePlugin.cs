@@ -5,22 +5,23 @@ using System.IO;
 using System.Text;
 
 namespace Jarvis.Plugins;
+
 public class FilePlugin
 {
+    private static string DesktopPath => Environment.GetFolderPath(Environment.SpecialFolder.Desktop);
+
     [KernelFunction]
-    [Description("Создаёт файл с содержимым")]
+    [Description("Создаёт файл на рабочем столе")]
     public async Task<string> CreateFile(
-        [Description("Полный путь к файлу")] string filePath,
+        [Description("Имя файла (например: заметки.txt)")] string fileName,
         [Description("Содержимое файла")] string content)
     {
         try
         {
-            var dir = Path.GetDirectoryName(filePath);
-            if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
-                Directory.CreateDirectory(dir);
+            string fullPath = Path.Combine(DesktopPath, fileName);
 
-            await File.WriteAllTextAsync(filePath, content, Encoding.UTF8);
-            return $"Файл создан: {filePath}";
+            await File.WriteAllTextAsync(fullPath, content, Encoding.UTF8);
+            return $"Файл создан на рабочем столе: {fileName}";
         }
         catch (Exception ex)
         {
@@ -29,16 +30,18 @@ public class FilePlugin
     }
 
     [KernelFunction]
-    [Description("Читает содержимое файла")]
+    [Description("Читает файл с рабочего стола")]
     public async Task<string> ReadFile(
-        [Description("Полный путь к файлу")] string filePath)
+        [Description("Имя файла на рабочем столе")] string fileName)
     {
         try
         {
-            if (!File.Exists(filePath))
-                return $"Файл не найден: {filePath}";
+            string fullPath = Path.Combine(DesktopPath, fileName);
 
-            string content = await File.ReadAllTextAsync(filePath, Encoding.UTF8);
+            if (!File.Exists(fullPath))
+                return $"Файл не найден: {fileName}";
+
+            string content = await File.ReadAllTextAsync(fullPath, Encoding.UTF8);
             return string.IsNullOrEmpty(content) ? "Файл пуст" : content;
         }
         catch (Exception ex)
@@ -48,21 +51,23 @@ public class FilePlugin
     }
 
     [KernelFunction]
-    [Description("Заменяет текст в файле")]
+    [Description("Заменяет текст в файле на рабочем столе")]
     public async Task<string> ReplaceInFile(
-        [Description("Полный путь к файлу")] string filePath,
+        [Description("Имя файла")] string fileName,
         [Description("Что заменить")] string oldText,
         [Description("На что заменить")] string newText)
     {
         try
         {
-            if (!File.Exists(filePath))
-                return $"Файл не найден: {filePath}";
+            string fullPath = Path.Combine(DesktopPath, fileName);
 
-            string content = await File.ReadAllTextAsync(filePath, Encoding.UTF8);
+            if (!File.Exists(fullPath))
+                return $"Файл не найден: {fileName}";
+
+            string content = await File.ReadAllTextAsync(fullPath, Encoding.UTF8);
             content = content.Replace(oldText, newText);
-            await File.WriteAllTextAsync(filePath, content, Encoding.UTF8);
-            return $"Текст заменён в: {filePath}";
+            await File.WriteAllTextAsync(fullPath, content, Encoding.UTF8);
+            return $"Текст заменён в: {fileName}";
         }
         catch (Exception ex)
         {
@@ -71,18 +76,20 @@ public class FilePlugin
     }
 
     [KernelFunction]
-    [Description("Добавляет текст в конец файла")]
+    [Description("Добавляет текст в конец файла на рабочем столе")]
     public async Task<string> AppendToFile(
-        [Description("Полный путь к файлу")] string filePath,
+        [Description("Имя файла")] string fileName,
         [Description("Текст для добавления")] string content)
     {
         try
         {
-            if (!File.Exists(filePath))
-                return $"Файл не найден: {filePath}";
+            string fullPath = Path.Combine(DesktopPath, fileName);
 
-            await File.AppendAllTextAsync(filePath, content, Encoding.UTF8);
-            return $"Текст добавлен: {filePath}";
+            if (!File.Exists(fullPath))
+                return $"Файл не найден: {fileName}";
+
+            await File.AppendAllTextAsync(fullPath, content, Encoding.UTF8);
+            return $"Текст добавлен в: {fileName}";
         }
         catch (Exception ex)
         {
@@ -91,17 +98,19 @@ public class FilePlugin
     }
 
     [KernelFunction]
-    [Description("Удаляет файл")]
+    [Description("Удаляет файл с рабочего стола")]
     public string DeleteFile(
-        [Description("Полный путь к файлу")] string filePath)
+        [Description("Имя файла на рабочем столе")] string fileName)
     {
         try
         {
-            if (!File.Exists(filePath))
-                return $"Файл не найден: {filePath}";
+            string fullPath = Path.Combine(DesktopPath, fileName);
 
-            File.Delete(filePath);
-            return $"Файл удалён: {filePath}";
+            if (!File.Exists(fullPath))
+                return $"Файл не найден: {fileName}";
+
+            File.Delete(fullPath);
+            return $"Файл удалён: {fileName}";
         }
         catch (Exception ex)
         {
@@ -110,17 +119,19 @@ public class FilePlugin
     }
 
     [KernelFunction]
-    [Description("Открывает файл в программе по умолчанию")]
+    [Description("Открывает файл с рабочего стола")]
     public string OpenFile(
-        [Description("Полный путь к файлу")] string filePath)
+        [Description("Имя файла на рабочем столе")] string fileName)
     {
         try
         {
-            if (!File.Exists(filePath))
-                return $"Файл не найден: {filePath}";
+            string fullPath = Path.Combine(DesktopPath, fileName);
 
-            Process.Start(new ProcessStartInfo(filePath) { UseShellExecute = true });
-            return $"Открыто: {filePath}";
+            if (!File.Exists(fullPath))
+                return $"Файл не найден: {fileName}";
+
+            Process.Start(new ProcessStartInfo(fullPath) { UseShellExecute = true });
+            return $"Открыто: {fileName}";
         }
         catch (Exception ex)
         {
@@ -128,4 +139,3 @@ public class FilePlugin
         }
     }
 }
-
