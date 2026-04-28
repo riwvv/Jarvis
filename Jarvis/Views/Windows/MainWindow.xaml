@@ -4,9 +4,11 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:Jarvis.Views.Windows"
+        xmlns:tb="http://www.hardcodet.net/taskbar"
         mc:Ignorable="d"
         Title="DesingWindow" Height="200" Width="400"
         WindowStyle="None"
+        Topmost="True"
         AllowsTransparency="True"
         Background="Transparent"
         WindowStartupLocation="CenterScreen"
@@ -85,6 +87,8 @@
     </Window.Triggers>
 
     <Grid x:Name="MainGrid" Background="{StaticResource BackgroundBrush}">
+        
+        
         <Grid x:Name="ContentGrid">
             <Grid.RenderTransform>
                 <TranslateTransform/>

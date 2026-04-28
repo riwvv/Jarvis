@@ -178,6 +178,7 @@ namespace Jarvis.Services {
 
                 // Проверяем, является ли распознанное слово wake word
                 if (IsWakeWordMatch(normalized)) {
+                    ((App)App.Current).OnVoiceWakeWord();
                     _state = RecognizerState.Listening;
                     OnWakeUp?.Invoke("LISTENING");
                     ResetInactivityTimer();
