@@ -15,6 +15,14 @@ namespace Jarvis.Services {
         private readonly OpenAIPromptExecutionSettings _settings;
         private readonly Kernel _kernel;
         private readonly SemaphoreSlim _semaphore = new(1, 1);
+        private readonly string _systemPrompt = "Ты — голосовой ассистент Джарвис для Windows. " +
+                "Твои строгие правила:\n" +
+                "1. Всегда на русском языке. Так же следуй правилу: каждый твой ответ должен начинаться на слово-состояние результата выполнения команды:" +
+                "DONE - успешно выполнил команду;" +
+                "WARNING - возникли небольшие проблемы или нужно уточнение;" +
+                "ERROR - не можешь выполнить команду или команда вызвала исключение;\n" +
+                "2. Запомни, ты можешь отвечать МАКСИМАЛЬНО КРАТКИМ текстом (1-2 предложения), но каждый ответ обязан начинаться на одно из этих слов по ситуации\n" +
+                "3. НИКОГДА не выводи теги <tool_call> или JSON как обычный текст.";
 
         private readonly IServiceProvider _serviceProvider;
 
@@ -25,17 +33,14 @@ namespace Jarvis.Services {
             _history = new();
             _settings = new OpenAIPromptExecutionSettings {
                 FunctionChoiceBehavior = FunctionChoiceBehavior.Auto(),
-                Temperature = 0.7,
-                MaxTokens = 1024
+                Temperature = 0.1,
+                MaxTokens = 512,
+                TopP = 0.9,
+                FrequencyPenalty = 0.5,
+                PresencePenalty = 0.5
             };
 
-            _history.AddSystemMessage(
-                "Всегда на русском языке. Так же следуй правилу: каждый твой ответ должен начинаться на слово-состояние результата выполнения команды:" +
-                "DONE - успешно выполнил команду;" +
-                "WARNING - возникли небольшие проблемы или нужно уточнение;" +
-                "ERROR - не можешь выполнить команду или команда вызвала исключение;" +
-                "Запомни, ты можешь отвечать МАКСИМАЛЬНО КРАТКИМ текстом (1-2 предложения), но каждый ответ обязан начинаться на одно из этих слов по ситуации"
-            );
+            _history.AddSystemMessage(_systemPrompt);
         }
 
         public async Task<string?> GetRequestUser(string userQuery, CancellationToken cancellationToken = default) {

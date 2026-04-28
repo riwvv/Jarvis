@@ -9,7 +9,6 @@ using Microsoft.SemanticKernel;
 using System.Drawing;
 using System.Windows;
 using System.Windows.Controls;
-using System.Timers;
 using System.IO;
 using Microsoft.Extensions.Configuration;
 using Jarvis.Configuration;
@@ -19,14 +18,14 @@ namespace Jarvis;
 
 public partial class App : Application {
     public static IServiceProvider? Services { get; private set; }
-    
+
     private IHost? _host;
     private Kernel? _kernelCore;
     private IConfiguration? _configuration;
 
-    private TaskbarIcon _trayIcon;
-    private MainWindow _mainWindow;
-    private System.Timers.Timer _autoHideTimer;
+    private TaskbarIcon? _trayIcon;
+    private MainWindow? _mainWindow;
+    private System.Timers.Timer? _autoHideTimer;
     private bool _isAutoMode = true;
 
     public App() {
@@ -59,7 +58,6 @@ public partial class App : Application {
         _kernelCore = builder.Build();
     }
 
-
     private void InitializedDI() {
         if (_kernelCore == null)
             throw new InvalidOperationException("KernelCore не инициализирован!");
@@ -81,12 +79,24 @@ public partial class App : Application {
         Services = _host.Services;
     }
 
-    private void InitializeSystemTray()
-    {
+    private async void CheckOllamaConnect() {
+        using var client = new HttpClient();
+        client.Timeout = TimeSpan.FromSeconds(15);
+        try {
+            var response = await client.GetAsync("http://localhost:11434/api/tags");
+            if (!response.IsSuccessStatusCode)
+                throw new Exception();
+        }
+        catch {
+            MessageBox.Show("Ollama не запущена! Пожалуйста, запустите Ollama и попробуйте снова.", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
+            Environment.Exit(1);
+        }
+    }
+
+    private void InitializeSystemTray() {
 
         string iconPath = Path.GetFullPath(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "..", "..", "Images", "JarvisImg.ico"));
-        _trayIcon = new TaskbarIcon
-        {
+        _trayIcon = new TaskbarIcon {
             Icon = new Icon(iconPath),
             ToolTipText = "Jarvis"
         };
@@ -108,57 +118,49 @@ public partial class App : Application {
         contextMenu.Items.Add(exitItem);
 
         _trayIcon.ContextMenu = contextMenu;
-
     }
 
-    private void MainWindow_Closing(object sender, System.ComponentModel.CancelEventArgs e)
-    {
+    private void MainWindow_Closing(object? sender, System.ComponentModel.CancelEventArgs e) {
         e.Cancel = true;
 
         HideToTray();
     }
 
-    private void SetupAutoHideTimer()
-    {
+    private void SetupAutoHideTimer() {
         _autoHideTimer = new System.Timers.Timer(2500);
-        _autoHideTimer.Elapsed += (s, e) =>
-        {
-            Dispatcher.Invoke(() =>
-            {
-                if (_isAutoMode && !_mainWindow.IsActive)
-                {
+        _autoHideTimer.Elapsed += (s, e) => {
+            Dispatcher.Invoke(() => {
+                if (_isAutoMode && !_mainWindow!.IsActive) {
                     HideToTray();
                 }
             });
         };
         _autoHideTimer.AutoReset = false;
     }
-    private void ShowNormalWindow()
-    {
+
+    private void ShowNormalWindow() {
         _isAutoMode = false;
-        _mainWindow.Show();
+        _mainWindow!.Show();
         _mainWindow.WindowState = WindowState.Normal;
         _mainWindow.ShowInTaskbar = true;
         _mainWindow.Topmost = false;
         _mainWindow.Activate();
     }
 
-    private void SetAutoMode()
-    {
+    private void SetAutoMode() {
         _isAutoMode = true;
         HideToTray();
     }
 
-    private void HideToTray()
-    {
-        _mainWindow.Hide();
+    private void HideToTray() {
+        _mainWindow!.Hide();
         _mainWindow.ShowInTaskbar = false;
     }
-    public void ShowAsOverlay()
-    {
+
+    public void ShowAsOverlay() {
         if (!_isAutoMode) return;
 
-        _mainWindow.Show();
+        _mainWindow!.Show();
         _mainWindow.WindowState = WindowState.Normal;
         _mainWindow.Topmost = true;
         _mainWindow.ShowInTaskbar = false;
@@ -167,11 +169,10 @@ public partial class App : Application {
         _mainWindow.Top = SystemParameters.WorkArea.Height - _mainWindow.Height - 20;
 
         _mainWindow.Activate();
-        _autoHideTimer.Start();
+        _autoHideTimer!.Start();
     }
 
-    private void ExitApplication()
-    {
+    private void ExitApplication() {
         _autoHideTimer?.Dispose();
         _trayIcon?.Dispose();
         Shutdown();
@@ -200,7 +201,7 @@ public partial class App : Application {
         base.OnStartup(e);
         InitializeSystemTray();
         SetupAutoHideTimer();
-        
+
     }
 
     protected override async void OnExit(ExitEventArgs e) {
