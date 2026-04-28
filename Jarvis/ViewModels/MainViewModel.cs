@@ -5,8 +5,6 @@ using System.Diagnostics;
 namespace Jarvis.ViewModels {
     public partial class MainViewModel : ObservableObject, IDisposable {
         [ObservableProperty] private string _state = "SLEEP";
-        [ObservableProperty] private string _lastCommand = string.Empty;
-        [ObservableProperty] private string _aiResponse = string.Empty;
         [ObservableProperty] private bool _isSpeaking = false; // Для отображения в UI, потом пригодится
 
         private readonly SpeechToTextService _speechToTextService;
@@ -25,12 +23,10 @@ namespace Jarvis.ViewModels {
             _speechToTextService.OnSpeechRecognized += async (text) => {
                 if (string.IsNullOrWhiteSpace(text)) return;
 
-                LastCommand = text;
                 Debug.WriteLine($"Распознана команда: {text}");
                 var response = await _communicationAiService.GetRequestUser(text);
 
                 if (!string.IsNullOrEmpty(response)) {
-                    AiResponse = response;
                     await _textToSpeechService.SpeakAsync(response);
                 }
             }; // обрабатывает/отправляет/озвучивает

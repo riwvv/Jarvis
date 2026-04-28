@@ -13,6 +13,7 @@ using System.Timers;
 using System.IO;
 using Microsoft.Extensions.Configuration;
 using Jarvis.Configuration;
+using System.Net.Http;
 
 namespace Jarvis;
 
@@ -43,6 +44,7 @@ public partial class App : Application {
     }
 
     private void InitializedSemanticKernel() {
+        CheckOllamaConnect();
         var aiSettings = _configuration!.GetSection("AISettings").Get<AISettings>();
 
         var builder = Kernel.CreateBuilder();
@@ -77,6 +79,20 @@ public partial class App : Application {
         }).Build();
 
         Services = _host.Services;
+    }
+
+    private async void CheckOllamaConnect() {
+        using var client = new HttpClient();
+        client.Timeout = TimeSpan.FromSeconds(15);
+        try {
+            var response = await client.GetAsync("http://localhost:11434/api/tags");
+            if (!response.IsSuccessStatusCode)
+                throw new Exception();
+        }
+        catch {
+            MessageBox.Show("Ollama не запущена! Пожалуйста, запустите Ollama и попробуйте снова.", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
+            Environment.Exit(1);
+        }
     }
 
     private void InitializeSystemTray()
