@@ -32,6 +32,7 @@ namespace Jarvis.ViewModels {
             }; // обрабатывает/отправляет/озвучивает
 
             _speechToTextService.OnWakeUp += (text) => State = text; // проснулся
+            //((App)App.Current).OnVoiceWakeWord();
             _speechToTextService.OnProcessingText += (text) => State = text; // слушает
             _speechToTextService.OnTimeout += async (text) => {
                 State = text;
