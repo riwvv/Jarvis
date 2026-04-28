@@ -26,6 +26,8 @@ public partial class App : Application {
         builder.Plugins.AddFromType<ApplicationPlugin>();
         builder.Plugins.AddFromType<SystemAudioPlugin>();
         builder.Plugins.AddFromType<BrowserPlugin>();
+        builder.Plugins.AddFromType<FilePlugin>();
+        builder.Plugins.AddFromType<SystemCommandPlugin>();
 
         builder.AddOpenAIChatCompletion(modelId: "qwen2.5:7b", endpoint: new Uri("http://localhost:11434/v1"), apiKey: "dummy");
         _kernelCore = builder.Build();
