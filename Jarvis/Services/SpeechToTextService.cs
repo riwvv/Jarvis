@@ -1,7 +1,7 @@
 ﻿using Microsoft.Extensions.Options;
 using System.Windows;
 using System.IO;
-using NAudio.Wave;
+using System.Windows;
 using Vosk;
 using Jarvis.Configuration;
 using Microsoft.Extensions.Logging;
@@ -78,6 +78,10 @@ namespace Jarvis.Services {
                 // 2. Командный распознаватель - без грамматики (общий режим)
                 _commandRecognizer = new VoskRecognizer(_model, SAMPLE_RATE);
                 _logger.LogInformation($"Vosk 0.42 инициализирован. Wake word грамматика: {grammarJson}");
+            }
+            catch (DirectoryNotFoundException ex) {
+                MessageBox.Show($"Ollama не запущена! Пожалуйста, запустите Ollama и попробуйте снова.\nОшибка: {ex.Message}", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
+                Environment.Exit(1);
             }
             catch (Exception ex) {
                 MessageBox.Show($"Ошибка загрузки модели Vosk.\n{ex.Message}",
