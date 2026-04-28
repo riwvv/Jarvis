@@ -14,7 +14,7 @@ namespace Jarvis.Services {
         private readonly ChatHistory _history;
         private readonly OpenAIPromptExecutionSettings _settings;
         private readonly Kernel _kernel;
-        private readonly SemaphoreSlim _semaphore = new(1, 1); // Потокобезопасность
+        private readonly SemaphoreSlim _semaphore = new(1, 1);
 
         private readonly IServiceProvider _serviceProvider;
 
@@ -38,17 +38,12 @@ namespace Jarvis.Services {
             );
         }
 
-        public IReadOnlyList<ChatMessageContent> GetChatHistory() {
-            return _history.AsReadOnly();
-        }
-
         public async Task<string?> GetRequestUser(string userQuery, CancellationToken cancellationToken = default) {
             if (string.IsNullOrWhiteSpace(userQuery)) {
                 OnResult?.Invoke("ERROR: Пустой запрос");
                 return null;
             }
 
-            // Потокобезопасная проверка на выполнение другого запроса
             if (!await _semaphore.WaitAsync(0, cancellationToken)) {
                 OnResult?.Invoke("WARNING: Предыдущий запрос еще обрабатывается");
                 return null;
@@ -71,7 +66,6 @@ namespace Jarvis.Services {
                 if (response != null && !string.IsNullOrEmpty(response.Content)) {
                     _history.AddAssistantMessage(response.Content);
 
-                    // Извлекаем статус из ответа
                     string status = ExtractStatusFromResponse(response.Content);
                     OnResult?.Invoke(status);
 
@@ -103,7 +97,6 @@ namespace Jarvis.Services {
         }
 
         private string ExtractStatusFromResponse(string response) {
-            // Извлекаем статус из начала ответа (DONE, WARNING, ERROR)
             if (string.IsNullOrEmpty(response)) return "DONE";
 
             string upperResponse = response.ToUpperInvariant();
@@ -112,7 +105,7 @@ namespace Jarvis.Services {
             if (upperResponse.StartsWith("WARNING")) return "WARNING";
             if (upperResponse.StartsWith("ERROR")) return "ERROR";
 
-            return "DONE"; // По умолчанию
+            return "DONE";
         }
 
         public void Dispose() {

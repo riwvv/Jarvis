@@ -5,6 +5,11 @@ using Vosk;
 
 namespace Jarvis.Services {
     public class SpeechToTextService : IDisposable {
+        public event Action<string>? OnWakeUp;           // Проснулся
+        public event Action<string>? OnProcessingText;   // Распознаёт текст
+        public event Action<string>? OnSpeechRecognized; // Команда распознана
+        public event Action<string>? OnTimeout;          // Уснул (таймаут)
+        
         private const int SAMPLE_RATE = 16000;
         private const int CHANNELS = 1;
         private const int BUFFER_MS = 100;
@@ -21,13 +26,6 @@ namespace Jarvis.Services {
             "джарвіс"
         };
 
-        // События для взаимодействия с ViewModel
-        public event Action<string>? OnWakeUp;           // Проснулся
-        public event Action<string>? OnProcessingText;   // Распознаёт текст
-        public event Action<string>? OnSpeechRecognized; // Команда распознана
-        public event Action<string>? OnTimeout;          // Уснул (таймаут)
-
-        // Состояния
         private enum RecognizerState {
             Sleeping,    // Спит, ждёт wake word
             Listening,   // Проснулся, слушает команду
@@ -89,7 +87,6 @@ namespace Jarvis.Services {
         }
 
         private string BuildWakeWordGrammar() {
-            // Только варианты пробуждения + [unk]
             var entries = _wakeWordVariants.Select(v => $"\"{v}\"").ToList();
             entries.Add("\"[unk]\"");
 
@@ -176,7 +173,6 @@ namespace Jarvis.Services {
                 string recognizedText = ExtractTextFromResult(result);
                 string normalized = NormalizeText(recognizedText);
 
-                // Проверяем, является ли распознанное слово wake word
                 if (IsWakeWordMatch(normalized)) {
                     _state = RecognizerState.Listening;
                     OnWakeUp?.Invoke("LISTENING");
@@ -207,7 +203,6 @@ namespace Jarvis.Services {
                 }
             }
             else {
-                // Частичный результат (опционально)
                 string partialResult = _commandRecognizer.PartialResult();
                 string partialText = ExtractPartialText(partialResult);
 
