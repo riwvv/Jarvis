@@ -1,11 +1,18 @@
-﻿using NAudio.Wave;
+﻿using Jarvis.Configuration;
+using Microsoft.Extensions.Options;
+using NAudio.Wave;
 using System.Diagnostics;
 using System.IO;
 using Vosk;
 
 namespace Jarvis.Services {
     public class SpeechToTextService : IDisposable {
-        private const int SAMPLE_RATE = 16000;
+        public event Action<string>? OnWakeUp;           // Проснулся
+        public event Action<string>? OnProcessingText;   // Распознаёт текст
+        public event Action<string>? OnSpeechRecognized; // Команда распознана
+        public event Action<string>? OnTimeout;          // Уснул (таймаут)
+        
+        private int SAMPLE_RATE;
         private const int CHANNELS = 1;
         private const int BUFFER_MS = 100;
 
@@ -21,13 +28,6 @@ namespace Jarvis.Services {
             "джарвіс"
         };
 
-        // События для взаимодействия с ViewModel
-        public event Action<string>? OnWakeUp;           // Проснулся
-        public event Action<string>? OnProcessingText;   // Распознаёт текст
-        public event Action<string>? OnSpeechRecognized; // Команда распознана
-        public event Action<string>? OnTimeout;          // Уснул (таймаут)
-
-        // Состояния
         private enum RecognizerState {
             Sleeping,    // Спит, ждёт wake word
             Listening,   // Проснулся, слушает команду
@@ -49,7 +49,11 @@ namespace Jarvis.Services {
         private Timer? _inactivityTimer;
         private const int INACTIVITY_TIMEOUT_MS = 10000;
 
-        public SpeechToTextService() {
+        private readonly SpeechSettings _settings;
+
+        public SpeechToTextService(IOptions<SpeechSettings> settings) {
+            _settings = settings.Value;
+            SAMPLE_RATE = _settings.SttSampleRate;
             InitializeVosk();
             InitializeMicrophone();
         }
@@ -57,11 +61,11 @@ namespace Jarvis.Services {
         private void InitializeVosk() {
             try {
                 // Путь к модели Vosk 0.42 внутри проекта
-                string modelPath = Path.GetFullPath(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "..", "..", "Models", "vosk-model-ru-0.42"));
+                string modelPath = Path.GetFullPath(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "..", "..", _settings.SttModelPath));
 
                 if (!Directory.Exists(modelPath)) {
                     // Пробуем альтернативный путь
-                    string alternativePath = Path.GetFullPath(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Models", "vosk-model-ru-0.42"));
+                    string alternativePath = Path.GetFullPath(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, _settings.SttModelPath));
                     if (Directory.Exists(alternativePath)) {
                         modelPath = alternativePath;
                     }
@@ -89,7 +93,6 @@ namespace Jarvis.Services {
         }
 
         private string BuildWakeWordGrammar() {
-            // Только варианты пробуждения + [unk]
             var entries = _wakeWordVariants.Select(v => $"\"{v}\"").ToList();
             entries.Add("\"[unk]\"");
 
@@ -176,7 +179,6 @@ namespace Jarvis.Services {
                 string recognizedText = ExtractTextFromResult(result);
                 string normalized = NormalizeText(recognizedText);
 
-                // Проверяем, является ли распознанное слово wake word
                 if (IsWakeWordMatch(normalized)) {
                     ((App)App.Current).OnVoiceWakeWord();
                     _state = RecognizerState.Listening;
@@ -208,7 +210,6 @@ namespace Jarvis.Services {
                 }
             }
             else {
-                // Частичный результат (опционально)
                 string partialResult = _commandRecognizer.PartialResult();
                 string partialText = ExtractPartialText(partialResult);
 

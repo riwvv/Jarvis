@@ -1,23 +1,25 @@
-﻿using System.Diagnostics;
+﻿using Jarvis.Configuration;
+using Microsoft.Extensions.Options;
+using System.Diagnostics;
 using System.Speech.Synthesis;
-using System.Threading;
-using System.Threading.Tasks;
 
 namespace Jarvis.Services {
     public class TextToSpeechService : IDisposable {
         private readonly SpeechSynthesizer _synthesizer;
         private bool _isSpeaking = false;
         private readonly SemaphoreSlim _speakSemaphore = new(1, 1);
+        private readonly SpeechSettings _speechSettings;
 
         public event Action? OnStartedSpeaking;
         public event Action? OnFinishedSpeaking;
         public event Action<string>? OnError;
 
-        public TextToSpeechService() {
+        public TextToSpeechService(IOptions<SpeechSettings> settings) {
+            _speechSettings = settings.Value;
             _synthesizer = new SpeechSynthesizer();
             _synthesizer.SetOutputToDefaultAudioDevice();
-            _synthesizer.Rate = 1;
-            _synthesizer.Volume = 100;
+            _synthesizer.Rate = _speechSettings.TtsRate;
+            _synthesizer.Volume = _speechSettings.TtsVolume;
 
             _synthesizer.SpeakStarted += (s, e) => {
                 _isSpeaking = true;

@@ -11,13 +11,17 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Timers;
 using System.IO;
+using Microsoft.Extensions.Configuration;
+using Jarvis.Configuration;
 
 namespace Jarvis;
 
 public partial class App : Application {
-    public static Kernel? KernelCore { get; private set; }
     public static IServiceProvider? Services { get; private set; }
+    
     private IHost? _host;
+    private Kernel? _kernelCore;
+    private IConfiguration? _configuration;
 
     private TaskbarIcon _trayIcon;
     private MainWindow _mainWindow;
@@ -25,28 +29,44 @@ public partial class App : Application {
     private bool _isAutoMode = true;
 
     public App() {
+        LoadConfiguration();
         InitializedSemanticKernel();
         InitializedDI();
     }
 
+    private void LoadConfiguration() {
+        var builder = new ConfigurationBuilder().SetBasePath(AppContext.BaseDirectory)
+            .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
+            .AddJsonFile($"appsettings.{Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT") ?? "Production"}.json", optional: true)
+            .AddEnvironmentVariables();
+        _configuration = builder.Build();
+    }
+
     private void InitializedSemanticKernel() {
+        var aiSettings = _configuration!.GetSection("AISettings").Get<AISettings>();
+
         var builder = Kernel.CreateBuilder();
 
         builder.Plugins.AddFromType<ApplicationPlugin>();
         builder.Plugins.AddFromType<SystemAudioPlugin>();
         builder.Plugins.AddFromType<BrowserPlugin>();
+        builder.Plugins.AddFromType<FilePlugin>();
+        builder.Plugins.AddFromType<SystemCommandPlugin>();
 
-        builder.AddOpenAIChatCompletion(modelId: "qwen2.5:7b", endpoint: new Uri("http://localhost:11434/v1"), apiKey: "dummy");
-        KernelCore = builder.Build();
+        builder.AddOpenAIChatCompletion(modelId: aiSettings!.ModelId, endpoint: new Uri(aiSettings.Endpoint), apiKey: aiSettings.ApiKey);
+        _kernelCore = builder.Build();
     }
 
 
     private void InitializedDI() {
-        if (KernelCore == null)
+        if (_kernelCore == null)
             throw new InvalidOperationException("KernelCore не инициализирован!");
 
         _host = Host.CreateDefaultBuilder().ConfigureServices((context, services) => {
-            services.AddSingleton(KernelCore!);
+            services.Configure<AISettings>(_configuration!.GetSection("AISettings"));
+            services.Configure<SpeechSettings>(_configuration!.GetSection("SpeechSettings"));
+
+            services.AddSingleton(_kernelCore!);
             services.AddSingleton<SpeechToTextService>();
             services.AddSingleton<TextToSpeechService>();
             services.AddSingleton<CommunicationAiService>();
