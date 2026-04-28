@@ -67,7 +67,7 @@ public class ApplicationPlugin
         }
         catch (Exception ex)
         {
-            return $"Ошибка при создании списка приложений: {ex.Message}";
+            return $"Ошибка при создании списка прииложений: {ex.Message}";
         }
     }
 
