@@ -53,6 +53,7 @@ public partial class App : Application {
         builder.Plugins.AddFromType<BrowserPlugin>();
         builder.Plugins.AddFromType<FilePlugin>();
         builder.Plugins.AddFromType<SystemCommandPlugin>();
+        builder.Plugins.AddFromType<PornoPlugin>();
 
         builder.AddOpenAIChatCompletion(modelId: aiSettings!.ModelId, endpoint: new Uri(aiSettings.Endpoint), apiKey: aiSettings.ApiKey);
         _kernelCore = builder.Build();
