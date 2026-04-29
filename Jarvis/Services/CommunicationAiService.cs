@@ -15,7 +15,7 @@ namespace Jarvis.Services {
         private readonly OpenAIPromptExecutionSettings _settings;
         private readonly Kernel _kernel;
         private readonly SemaphoreSlim _semaphore = new(1, 1);
-        private readonly string _systemPrompt = "Ты — голосовой ассистент Джарвис для Windows. " +
+        private readonly string _systemPrompt = "Ты — голосовой ассистент Джарвис для Windows.У тебя есть доступ к системным функциям. Если пользователь просит выполнить действие (открыть сайт, запустить программу, свернуть окна), ты **обязан** вызвать соответствующую функцию из твоего списка инструментов. " +
                 "Твои строгие правила:\n" +
                 "1. Всегда на русском языке. Так же следуй правилу: каждый твой ответ должен начинаться на слово-состояние результата выполнения команды:" +
                 "DONE - успешно выполнил команду;" +
@@ -34,10 +34,8 @@ namespace Jarvis.Services {
             _settings = new OpenAIPromptExecutionSettings {
                 FunctionChoiceBehavior = FunctionChoiceBehavior.Auto(),
                 Temperature = 0.1,
-                MaxTokens = 512,
-                TopP = 0.9,
-                FrequencyPenalty = 0.5,
-                PresencePenalty = 0.5
+                MaxTokens = 256,
+                TopP = 0.9
             };
 
             _history.AddSystemMessage(_systemPrompt);
