@@ -1,16 +1,17 @@
-﻿using Microsoft.SemanticKernel;
+﻿using Jarvis.Models;
+using Microsoft.SemanticKernel;
 using Microsoft.Win32;
 using System.ComponentModel;
 using System.Diagnostics;
-using System.Text;
 using System.IO;
-using Jarvis.Models;
+using System.Text;
 
 namespace Jarvis.Plugins;
 
 public class ApplicationPlugin
 {
-    private readonly StringComparer _comparer = StringComparer.OrdinalIgnoreCase;
+    private List<InstalledApplication>? _installedApps;
+    private bool _isLoaded;
 
     private readonly string[] _registryPaths =
     [
@@ -18,29 +19,11 @@ public class ApplicationPlugin
         @"SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall"
     ];
 
-    // Системные пути для фильтрации
-    private readonly string[] _systemPaths =
-    [
-        Environment.GetFolderPath(Environment.SpecialFolder.Windows),
-        Environment.GetFolderPath(Environment.SpecialFolder.System),
-        Environment.GetFolderPath(Environment.SpecialFolder.SystemX86),
-        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "WinSxS"),
-        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "Microsoft.NET"),
-        @"C:\Program Files\WindowsApps",
-        @"C:\Program Files\ModifiableWindowsApps"
-    ];
-
-    // Ключевые слова для фильтрации системных компонентов
-    private readonly string[] _systemKeywords =
+    private readonly string[] _excludeKeywords =
     [
         "Microsoft Visual C++",
         "Microsoft .NET",
-        "Microsoft Edge",
-        "Microsoft OneDrive",
-        "Microsoft Update Health",
-        "Windows SDK",
-        "Windows Software Development",
-        "Driver",
+        "Redistributable",
         "Update for",
         "Security Update",
         "Hotfix",
@@ -48,80 +31,78 @@ public class ApplicationPlugin
     ];
 
     [KernelFunction]
-    [Description("Создаёт на рабочем столе файл 'Список приложений.txt' со списком всех установленных пользовательских приложений и путями к ним")]
-    public async Task<string> GetInstalledApplications()
+    [Description("Запускает приложение по названию. Сканирует реестр один раз при первом обращении")]
+    public async Task<string> LaunchApp(
+        [Description("Название приложения: Steam, Telegram, Google Chrome, Visual Studio")] string appName)
     {
+        if (!_isLoaded)
+            await ScanSystemAsync();
+
+        if (_installedApps == null || _installedApps.Count == 0)
+            return "Приложения не найдены";
+
+        var app = SearchApp(appName.Trim());
+
+        if (app == null)
+            return $"Приложение \"{appName}\" не найдено";
+
         try
         {
-            var applications = ScanRegistry();
-
-            if (applications.Count == 0)
-            {
-                return "Пользовательские приложения не найдены или произошла ошибка чтения реестра.";
-            }
-
-            var content = BuildReportContent(applications);
-            string filePath = await SaveReportToDesktop(content);
-
-            return $"Файл успешно создан: {filePath}\nНайдено приложений: {applications.Count}";
+            Process.Start(new ProcessStartInfo(app.ExecutablePath!) { UseShellExecute = true });
+            return $"Запущено: {app.DisplayName}";
         }
         catch (Exception ex)
         {
-            return $"Ошибка при создании списка прииложений: {ex.Message}";
+            return $"Ошибка запуска: {ex.Message}";
         }
     }
 
     [KernelFunction]
-    [Description("Открывает файл или приложение по указанному полному пути")]
-    public string OpenFileOrApplication(
-        [Description("Полный путь к исполняемому файлу или документу")] string fullPath)
+    [Description("Создаёт текстовый файл на рабочем столе со списком всех установленных приложений")]
+    public async Task<string> CreateAppListFile()
     {
-        if (string.IsNullOrWhiteSpace(fullPath))
-            return "Ошибка: Путь не указан";
+        if (!_isLoaded)
+            await ScanSystemAsync();
 
-        if (!File.Exists(fullPath))
-            return $"Ошибка: Файл не найден по пути '{fullPath}'";
+        if (_installedApps == null || _installedApps.Count == 0)
+            return "Приложения не найдены";
 
         try
         {
-            var startInfo = new ProcessStartInfo(fullPath)
-            {
-                UseShellExecute = true,
-                Verb = "open"
-            };
+            string report = GenerateTextReport();
+            string desktop = Environment.GetFolderPath(Environment.SpecialFolder.Desktop);
+            string filePath = Path.Combine(desktop, $"Список приложений {DateTime.Now:yyyy-MM-dd}.txt");
 
-            Process.Start(startInfo);
-            return $"Успешно открыто: {Path.GetFileName(fullPath)}";
+            await File.WriteAllTextAsync(filePath, report, Encoding.UTF8);
+            return $"Файл создан: {filePath}\nНайдено: {_installedApps.Count} приложений";
         }
         catch (Exception ex)
         {
-            return $"Ошибка при открытии: {ex.Message}";
+            return $"Ошибка создания файла: {ex.Message}";
         }
     }
 
-    private Dictionary<string, InstalledApplication> ScanRegistry()
+    private async Task ScanSystemAsync()
     {
-        var applications = new Dictionary<string, InstalledApplication>(_comparer);
-
-        // Сканируем HKLM
-        foreach (var path in _registryPaths)
-        {
-            ScanRegistryKey(RegistryHive.LocalMachine, path, applications);
-        }
-
-        // Сканируем HKCU
-        ScanRegistryKey(RegistryHive.CurrentUser, _registryPaths[0], applications);
-
-        return applications;
+        _installedApps = new List<InstalledApplication>();
+        await Task.Run(() => ScanRegistry());
+        _isLoaded = true;
     }
 
-    private void ScanRegistryKey(RegistryHive hive, string subPath, Dictionary<string, InstalledApplication> apps)
+    private void ScanRegistry()
+    {
+        foreach (var path in _registryPaths)
+            ScanRegistryKey(RegistryHive.LocalMachine, path);
+
+        ScanRegistryKey(RegistryHive.CurrentUser, _registryPaths[0]);
+    }
+
+    private void ScanRegistryKey(RegistryHive hive, string subPath)
     {
         try
         {
             using var baseKey = RegistryKey.OpenBaseKey(hive, RegistryView.Registry64);
             using var key = baseKey.OpenSubKey(subPath);
-
             if (key == null) return;
 
             foreach (var subKeyName in key.GetSubKeyNames())
@@ -129,117 +110,117 @@ public class ApplicationPlugin
                 using var subKey = key.OpenSubKey(subKeyName);
                 if (subKey == null) continue;
 
-                var app = ParseRegistryKey(subKey);
-                if (app != null && IsValidUserApplication(app))
-                {
-                    // Используем DisplayName как ключ, если дубликат - перезаписываем
-                    apps[app.DisplayName!] = app;
-                }
+                var app = ReadRegistryEntry(subKey);
+                if (app != null)
+                    _installedApps!.Add(app);
             }
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"Ошибка сканирования {hive}\\{subPath}: {ex.Message}");
+            Debug.WriteLine($"Scan error: {ex.Message}");
         }
     }
 
-    private InstalledApplication? ParseRegistryKey(RegistryKey key)
+    private InstalledApplication? ReadRegistryEntry(RegistryKey key)
     {
-        var displayName = key.GetValue("DisplayName") as string;
+        var name = key.GetValue("DisplayName") as string;
+        if (string.IsNullOrWhiteSpace(name)) return null;
 
-        if (string.IsNullOrWhiteSpace(displayName))
+        if (_excludeKeywords.Any(k => name.Contains(k, StringComparison.OrdinalIgnoreCase)))
             return null;
 
-        var displayIcon = key.GetValue("DisplayIcon") as string;
+        var icon = key.GetValue("DisplayIcon") as string;
+        var exePath = ResolveExePath(key, icon, name);
+
+        if (string.IsNullOrEmpty(exePath)) return null;
+        if (IsSystemPath(exePath)) return null;
 
         return new InstalledApplication
         {
-            DisplayName = displayName,
+            DisplayName = name,
             DisplayVersion = key.GetValue("DisplayVersion") as string,
             Publisher = key.GetValue("Publisher") as string,
             InstallLocation = key.GetValue("InstallLocation") as string,
-            DisplayIcon = displayIcon,
+            DisplayIcon = icon,
             UninstallString = key.GetValue("UninstallString") as string,
-            ExecutablePath = ExtractExecutablePath(displayIcon)
+            ExecutablePath = exePath
         };
     }
 
-    private string? ExtractExecutablePath(string? displayIcon)
+    private string? ResolveExePath(RegistryKey key, string? icon, string appName)
     {
-        if (string.IsNullOrEmpty(displayIcon))
-            return null;
+        if (!string.IsNullOrEmpty(icon))
+        {
+            var path = icon.Split(',')[0].Trim().Trim('"');
+            if (path.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)
+                && File.Exists(path)
+                && !path.Contains("unins", StringComparison.OrdinalIgnoreCase))
+                return path;
+        }
 
-        // Убираем параметры после запятой (например, "path.exe,0")
-        var iconPath = displayIcon.Split(',')[0].Trim();
+        var location = key.GetValue("InstallLocation") as string;
+        if (!string.IsNullOrEmpty(location) && Directory.Exists(location))
+        {
+            var exes = Directory.GetFiles(location, "*.exe", SearchOption.AllDirectories)
+                .Where(f => !f.Contains("unins", StringComparison.OrdinalIgnoreCase))
+                .Where(f => !f.Contains("redist", StringComparison.OrdinalIgnoreCase))
+                .ToList();
 
-        // Проверяем расширение
-        if (iconPath.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) && File.Exists(iconPath))
-            return iconPath;
+            if (exes.Count == 1) return exes[0];
+            if (exes.Count > 1)
+            {
+                var word = appName.Split(' ')[0];
+                return exes.FirstOrDefault(f =>
+                    Path.GetFileNameWithoutExtension(f).Contains(word, StringComparison.OrdinalIgnoreCase))
+                    ?? exes.OrderByDescending(f => new FileInfo(f).Length).First();
+            }
+        }
 
         return null;
     }
 
-    private bool IsValidUserApplication(InstalledApplication app)
+    private bool IsSystemPath(string path)
     {
-        // Проверка 1: Должен быть исполняемый файл
-        if (string.IsNullOrEmpty(app.ExecutablePath))
-            return false;
+        string[] systemPaths =
+        [
+            Environment.GetFolderPath(Environment.SpecialFolder.Windows),
+            Environment.GetFolderPath(Environment.SpecialFolder.System),
+            Environment.GetFolderPath(Environment.SpecialFolder.SystemX86),
+            @"C:\Program Files\WindowsApps"
+        ];
 
-        // Проверка 2: Не системный путь
-        foreach (var systemPath in _systemPaths)
-        {
-            if (app.ExecutablePath.StartsWith(systemPath, StringComparison.OrdinalIgnoreCase) ||
-                (app.InstallLocation?.StartsWith(systemPath, StringComparison.OrdinalIgnoreCase) ?? false))
-            {
-                return false;
-            }
-        }
-
-        // Проверка 3: Не системное название
-        foreach (var keyword in _systemKeywords)
-        {
-            if (app.DisplayName?.Contains(keyword, StringComparison.OrdinalIgnoreCase) == true)
-                return false;
-        }
-
-        return true;
+        return systemPaths.Any(p => path.StartsWith(p, StringComparison.OrdinalIgnoreCase));
     }
 
-    private string BuildReportContent(Dictionary<string, InstalledApplication> applications)
+    private InstalledApplication? SearchApp(string appName)
+    {
+        var exact = _installedApps!.FirstOrDefault(a =>
+            a.DisplayName?.Equals(appName, StringComparison.OrdinalIgnoreCase) == true);
+        if (exact != null) return exact;
+
+        var key = appName.ToLower().Replace(" ", "");
+        return _installedApps!.FirstOrDefault(a =>
+            (a.DisplayName?.ToLower().Replace(" ", "") ?? "").Contains(key)
+            || key.Contains(a.DisplayName?.ToLower().Replace(" ", "") ?? ""));
+    }
+
+    private string GenerateTextReport()
     {
         var sb = new StringBuilder();
+        sb.AppendLine("=== УСТАНОВЛЕННЫЕ ПРИЛОЖЕНИЯ ===");
+        sb.AppendLine($"Дата: {DateTime.Now:dd.MM.yyyy HH:mm}");
+        sb.AppendLine($"Всего: {_installedApps!.Count}\n");
 
-        sb.AppendLine("=== СПИСОК УСТАНОВЛЕННЫХ ПРИЛОЖЕНИЙ ===");
-        sb.AppendLine($"Сформирован: {DateTime.Now:dd.MM.yyyy HH:mm}");
-        sb.AppendLine($"Всего приложений: {applications.Count}");
-        sb.AppendLine();
-
-        var index = 1;
-        foreach (var app in applications.Values.OrderBy(a => a.DisplayName))
+        int index = 1;
+        foreach (var app in _installedApps.OrderBy(a => a.DisplayName))
         {
-            sb.AppendLine($" {index++}. {app.DisplayName}");
-            sb.AppendLine($"   Версия: {app.DisplayVersion ?? "не указана"}");
-            sb.AppendLine($"   Издатель: {app.Publisher ?? "не указан"}");
+            sb.AppendLine($"{index++}. {app.DisplayName}");
+            sb.AppendLine($"   Версия: {app.DisplayVersion ?? "—"}");
+            sb.AppendLine($"   Издатель: {app.Publisher ?? "—"}");
             sb.AppendLine($"   Путь: {app.ExecutablePath}");
-
-            if (!string.IsNullOrEmpty(app.InstallLocation))
-                sb.AppendLine($"   Папка установки: {app.InstallLocation}");
-
             sb.AppendLine();
         }
 
         return sb.ToString();
     }
-
-    private async Task<string> SaveReportToDesktop(string content)
-    {
-        string desktopPath = Environment.GetFolderPath(Environment.SpecialFolder.Desktop);
-        string fileName = $"Список приложений {DateTime.Now:yyyy-MM-dd}.txt";
-        string fullPath = Path.Combine(desktopPath, fileName);
-
-        await File.WriteAllTextAsync(fullPath, content, Encoding.UTF8);
-
-        return fullPath;
-    }
 }
-
