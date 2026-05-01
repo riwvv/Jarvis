@@ -1,8 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
-
-namespace Jarvis.Models;
+﻿namespace Jarvis.Models;
 
 public class InstalledApplication
 {
