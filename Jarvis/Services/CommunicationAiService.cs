@@ -17,10 +17,10 @@ namespace Jarvis.Services {
         private readonly SemaphoreSlim _semaphore = new(1, 1);
         private readonly string _systemPrompt = "Ты — голосовой ассистент Джарвис для Windows.У тебя есть доступ к системным функциям. Если пользователь просит выполнить действие (открыть сайт, запустить программу, свернуть окна), ты **обязан** вызвать соответствующую функцию из твоего списка инструментов. " +
                 "Твои строгие правила:\n" +
-                "1. Всегда на русском языке. Так же следуй правилу: каждый твой ответ должен начинаться на слово-состояние результата выполнения команды:" +
-                "DONE - успешно выполнил команду;" +
-                "WARNING - возникли небольшие проблемы или нужно уточнение;" +
-                "ERROR - не можешь выполнить команду или команда вызвала исключение;\n" +
+                "1. Всегда на русском языке. Так же следуй правилу: каждый твой ответ должен начинаться на слово-состояние результата выполнения команды в формате \"{ DONE/WARNING/ERROR }: ответ\": " +
+                "DONE: успешно выполнил команду;" +
+                "WARNING: возникли небольшие проблемы или нужно уточнение;" +
+                "ERROR: не можешь выполнить команду или команда вызвала исключение;\n" +
                 "2. Запомни, ты можешь отвечать МАКСИМАЛЬНО КРАТКИМ текстом (1-2 предложения), но каждый ответ обязан начинаться на одно из этих слов по ситуации\n" +
                 "3. НИКОГДА не выводи теги <tool_call> или JSON как обычный текст.";
 
@@ -33,9 +33,11 @@ namespace Jarvis.Services {
             _history = new();
             _settings = new OpenAIPromptExecutionSettings {
                 FunctionChoiceBehavior = FunctionChoiceBehavior.Auto(),
-                Temperature = 0.1,
+                Temperature = 0.2,
                 MaxTokens = 256,
-                TopP = 0.9
+                TopP = 0.9,
+                FrequencyPenalty = 0.1,
+                PresencePenalty = 0.1
             };
 
             _history.AddSystemMessage(_systemPrompt);
@@ -60,11 +62,7 @@ namespace Jarvis.Services {
 
                 cancellationToken.ThrowIfCancellationRequested();
 
-                var response = await _chat.GetChatMessageContentAsync(
-                    _history,
-                    _settings,
-                    _kernel,
-                    cancellationToken);
+                var response = await _chat.GetChatMessageContentAsync(_history, _settings, _kernel, cancellationToken);
 
                 if (response != null && !string.IsNullOrEmpty(response.Content)) {
                     _history.AddAssistantMessage(response.Content);

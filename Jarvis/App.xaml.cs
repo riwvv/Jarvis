@@ -1,4 +1,5 @@
-﻿using Hardcodet.Wpf.TaskbarNotification;
+﻿#pragma warning disable SKEXP0001, SKEXP0020
+using Hardcodet.Wpf.TaskbarNotification;
 using Jarvis.Plugins;
 using Jarvis.Services;
 using Jarvis.ViewModels;
@@ -207,3 +208,5 @@ public partial class App : Application {
         base.OnExit(e);
     }
 }
+
+#pragma warning restore SKEXP0001, SKEXP0020
