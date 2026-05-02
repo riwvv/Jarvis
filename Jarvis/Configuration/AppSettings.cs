@@ -14,7 +14,7 @@ public class AISettings {
 }
 
 public class SpeechSettings {
-    public string SttModelPath { get; set; } = Path.GetFullPath(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "..", "..", "Models", "vosk-model-ru-0.42"));
+    public string SttModelPath { get; set; } = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Models\\vosk-model-ru-0.42");
     public int SttSampleRate { get; set; } = 16000;
     public int TtsRate { get; set; } = 1;
     public int TtsVolume { get; set; } = 75;
