@@ -1,19 +1,25 @@
 ﻿#pragma warning disable SKEXP0001, SKEXP0020
+using Microsoft.SemanticKernel;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Configuration;
 using Hardcodet.Wpf.TaskbarNotification;
+using System.Windows.Controls;
+using System.Windows;
+using System.Drawing;
+using System.IO;
+using System.Net.Http;
 using Jarvis.Plugins;
 using Jarvis.Services;
 using Jarvis.ViewModels;
 using Jarvis.Views.Windows;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
-using Microsoft.SemanticKernel;
-using System.Drawing;
-using System.Windows;
-using System.Windows.Controls;
-using System.IO;
-using Microsoft.Extensions.Configuration;
 using Jarvis.Configuration;
-using System.Net.Http;
+using StackExchange.Redis;
+using Microsoft.SemanticKernel.Connectors.Redis;
+using Microsoft.Extensions.AI;
+using OpenAI;
+using System.ClientModel;
+using Microsoft.SemanticKernel.Memory;
 
 namespace Jarvis;
 
@@ -64,7 +70,10 @@ public partial class App : Application {
         if (_kernelCore == null)
             throw new InvalidOperationException("KernelCore не инициализирован!");
 
-        _host = Host.CreateDefaultBuilder().ConfigureServices((context, services) => {
+        var connectionMultiplexer = ConnectionMultiplexer.Connect("localhost:6379");
+        var db = connectionMultiplexer.GetDatabase();
+
+        _host = Host.CreateDefaultBuilder().ConfigureServices((services) => {
             services.Configure<AISettings>(_configuration!.GetSection("AISettings"));
             services.Configure<SpeechSettings>(_configuration!.GetSection("SpeechSettings"));
 
@@ -76,6 +85,16 @@ public partial class App : Application {
             services.AddSingleton<MainViewModel>();
 
             services.AddSingleton<MainWindow>();
+
+            services.AddSingleton<IConnectionMultiplexer>(connectionMultiplexer);
+            //services.AddSingleton<IMemoryStore>(x => new RedisMemoryStore(db));
+            //services.AddSingleton<IEmbeddingGenerator<string, Embedding<float>>>(x => {
+            //    var options = new OpenAIClientOptions { Endpoint = new Uri("http://localhost:11434/v1") };
+            //    var client = new OpenAIClient(new ApiKeyCredential("ollama"), options);
+            //    var embeddingClient = client.GetEmbeddingClient("all-minilm:l6-v2");
+            //    return embeddingClient.AsIEmbeddingGenerator();
+            //});
+            services.AddSingleton<VectorMemoryService>();
         }).Build();
 
         Services = _host.Services;
@@ -186,6 +205,8 @@ public partial class App : Application {
 
     protected override async void OnStartup(StartupEventArgs e) {
         await _host!.StartAsync();
+        //var memoryService = _host.Services.GetRequiredService<VectorMemoryService>();
+        //await memoryService.EnsureIndexExistsAsync();
         _mainWindow = _host.Services.GetRequiredService<MainWindow>();
         _mainWindow.DataContext = _host.Services.GetRequiredService<MainViewModel>();
         _mainWindow.Closing += MainWindow_Closing;
