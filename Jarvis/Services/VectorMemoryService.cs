@@ -1,62 +1,68 @@
-﻿using StackExchange.Redis;
+﻿using Jarvis.VectorMemory;
+using LiteDB;
 using System.Diagnostics;
+using System.IO;
 using System.Text;
-using System.Text.Json;
 
 namespace Jarvis.Services;
 
 public class VectorMemoryService {
-    private readonly IDatabase _database;
-    private const string HashKey = "jarvis_simple_memory";
+    private readonly LiteDatabase _db;
+    private readonly ILiteCollection<MemoryEntry> _collection;
 
-    public VectorMemoryService(IConnectionMultiplexer multiplexer) {
-        _database = multiplexer.GetDatabase();
+    public VectorMemoryService() {
+        // Храним базу данных в папке пользователя, не в папке с программой
+        var appData = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Jarvis");
+        Directory.CreateDirectory(appData);
+        var dbPath = Path.Combine(appData, "memory.db");
+        _db = new LiteDatabase(dbPath);
+        _collection = _db.GetCollection<MemoryEntry>("memories");
+
+        // Автоиндексация по времени
+        _collection.EnsureIndex(x => x.Timestamp);
     }
 
-    public async Task SaveMemoryAsync(string userPrompt, string assistantResponse) {
+    public Task SaveMemoryAsync(string userPrompt, string assistantResponse) {
         if (assistantResponse.StartsWith("ERROR") || assistantResponse.StartsWith("WARNING"))
-            return;
+            return Task.CompletedTask;
 
-        var id = Guid.NewGuid().ToString();
-        var entry = new {
-            Id = id,
+        _collection.Insert(new MemoryEntry {
+            Id = Guid.NewGuid().ToString(),
             UserPrompt = userPrompt,
             AssistantResponse = assistantResponse,
-            Timestamp = DateTime.UtcNow.Ticks
-        };
-        var json = JsonSerializer.Serialize(entry);
-        await _database.HashSetAsync(HashKey, id, json);
-        Debug.WriteLine($"Сохранено: {userPrompt} -> {assistantResponse}");
+            Timestamp = DateTime.UtcNow
+        });
+
+        Debug.WriteLine($"Сохранено в LiteDB: {userPrompt} -> {assistantResponse}");
+        return Task.CompletedTask;
     }
 
-    public async Task<string?> SearchRelevantContextAsync(string userMessage, int topK = 3) {
-        var allEntries = await _database.HashGetAllAsync(HashKey);
-        if (allEntries.Length == 0) return null;
-
-        var results = new List<(string Prompt, string Response, int Score)>();
+    public Task<string?> SearchRelevantContextAsync(string userMessage, int topK = 3) {
         var searchWords = userMessage.ToLower().Split(new[] { ' ', ',', '.', '?', '!' }, StringSplitOptions.RemoveEmptyEntries);
+        var all = _collection.Query().ToList();
 
-        foreach (var entry in allEntries) {
-            var json = entry.Value.ToString();
-            using var doc = JsonDocument.Parse(json);
-            var prompt = doc.RootElement.GetProperty("UserPrompt").GetString() ?? "";
-            var response = doc.RootElement.GetProperty("AssistantResponse").GetString() ?? "";
+        if (all.Count == 0) {
+            Debug.WriteLine("LiteDB: нет сохранённых записей");
+            return Task.FromResult<string?>(null);
+        }
 
-            var promptWords = prompt.ToLower().Split(new[] { ' ', ',', '.', '?', '!' }, StringSplitOptions.RemoveEmptyEntries);
+        var results = new List<(MemoryEntry entry, int score)>();
+        foreach (var entry in all) {
+            var promptWords = entry.UserPrompt.ToLower().Split(new[] { ' ', ',', '.', '?', '!' }, StringSplitOptions.RemoveEmptyEntries);
             var score = searchWords.Count(w => promptWords.Contains(w));
-
-            if (score > 0) results.Add((prompt, response, score));
+            if (score > 0) results.Add((entry, score));
         }
 
-        if (!results.Any()) return null;
+        if (!results.Any()) return Task.FromResult<string?>(null);
 
-        var topResults = results.OrderByDescending(r => r.Score).Take(topK).ToList();
-        var contextBuilder = new StringBuilder();
-        contextBuilder.AppendLine("Вот информация из моей памяти:");
-        foreach (var r in topResults) {
-            contextBuilder.AppendLine($"- Пользователь сказал: \"{r.Prompt}\"");
-            contextBuilder.AppendLine($"  Я ответил: \"{r.Response}\"");
+        var topResults = results.OrderByDescending(r => r.score).Take(topK).ToList();
+        var sb = new StringBuilder();
+        sb.AppendLine("Вот что я помню из прошлого:");
+        foreach (var (entry, score) in topResults) {
+            sb.AppendLine($"- Вы говорили: \"{entry.UserPrompt}\"");
+            sb.AppendLine($"  Я ответил: \"{entry.AssistantResponse}\"");
         }
-        return contextBuilder.ToString();
+
+        return Task.FromResult<string?>(sb.ToString());
     }
 }
