@@ -1,10 +1,10 @@
-﻿using Jarvis.Configuration;
-using Microsoft.Extensions.Options;
-using NAudio.Wave;
+﻿using Microsoft.Extensions.Options;
 using System.Diagnostics;
-using System.IO;
 using System.Windows;
+using System.IO;
+using NAudio.Wave;
 using Vosk;
+using Jarvis.Configuration;
 
 namespace Jarvis.Services {
     public class SpeechToTextService : IDisposable {
@@ -62,17 +62,9 @@ namespace Jarvis.Services {
         private void InitializeVosk() {
             try {
                 // Путь к модели Vosk 0.42 внутри проекта
-                string modelPath = Path.GetFullPath(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "..", "..", _settings.SttModelPath));
-
+                string modelPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, _settings.SttModelPath);
                 if (!Directory.Exists(modelPath)) {
-                    // Пробуем альтернативный путь
-                    string alternativePath = Path.GetFullPath(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, _settings.SttModelPath));
-                    if (Directory.Exists(alternativePath)) {
-                        modelPath = alternativePath;
-                    }
-                    else {
-                        throw new DirectoryNotFoundException($"Vosk модель 0.42 не найдена. Проверьте пути:\n{modelPath}\n{alternativePath}");
-                    }
+                    throw new DirectoryNotFoundException($"Vosk модель не найдена: {modelPath}");
                 }
 
                 Debug.WriteLine($"Загрузка модели Vosk 0.42 из: {modelPath}");
@@ -84,16 +76,12 @@ namespace Jarvis.Services {
 
                 // 2. Командный распознаватель - без грамматики (общий режим)
                 _commandRecognizer = new VoskRecognizer(_model, SAMPLE_RATE);
-
                 Debug.WriteLine($"Vosk 0.42 инициализирован. Wake word грамматика: {grammarJson}");
             }
-            catch (DirectoryNotFoundException ex) {
-                MessageBox.Show($"Ollama не запущена! Пожалуйста, запустите Ollama и попробуйте снова.\nОшибка: {ex.Message}", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
-                Environment.Exit(1);
-            }
             catch (Exception ex) {
-                Debug.WriteLine($"Ошибка инициализации Vosk: {ex.Message}");
-                throw;
+                MessageBox.Show($"Ошибка загрузки модели Vosk.\n{ex.Message}",
+                                "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
+                Environment.Exit(1);
             }
         }
 

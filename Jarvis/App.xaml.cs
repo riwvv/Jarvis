@@ -1,18 +1,18 @@
-﻿using Hardcodet.Wpf.TaskbarNotification;
+﻿using Microsoft.SemanticKernel;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Configuration;
+using Hardcodet.Wpf.TaskbarNotification;
+using System.Windows.Controls;
+using System.Windows;
+using System.Drawing;
+using System.IO;
+using System.Net.Http;
 using Jarvis.Plugins;
 using Jarvis.Services;
 using Jarvis.ViewModels;
 using Jarvis.Views.Windows;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
-using Microsoft.SemanticKernel;
-using System.Drawing;
-using System.Windows;
-using System.Windows.Controls;
-using System.IO;
-using Microsoft.Extensions.Configuration;
 using Jarvis.Configuration;
-using System.Net.Http;
 
 namespace Jarvis;
 
@@ -63,7 +63,7 @@ public partial class App : Application {
         if (_kernelCore == null)
             throw new InvalidOperationException("KernelCore не инициализирован!");
 
-        _host = Host.CreateDefaultBuilder().ConfigureServices((context, services) => {
+        _host = Host.CreateDefaultBuilder().ConfigureServices((services) => {
             services.Configure<AISettings>(_configuration!.GetSection("AISettings"));
             services.Configure<SpeechSettings>(_configuration!.GetSection("SpeechSettings"));
 
@@ -71,6 +71,7 @@ public partial class App : Application {
             services.AddSingleton<SpeechToTextService>();
             services.AddSingleton<TextToSpeechService>();
             services.AddSingleton<CommunicationAiService>();
+            services.AddSingleton<VectorMemoryService>();
 
             services.AddSingleton<MainViewModel>();
 
@@ -95,8 +96,7 @@ public partial class App : Application {
     }
 
     private void InitializeSystemTray() {
-
-        string iconPath = Path.GetFullPath(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "..", "..", "Images", "JarvisImg.ico"));
+        string iconPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Images", "JarvisImg.ico");
         _trayIcon = new TaskbarIcon {
             Icon = new Icon(iconPath),
             ToolTipText = "Jarvis"
