@@ -1,6 +1,6 @@
 ﻿using Microsoft.SemanticKernel;
-using NAudio.CoreAudioApi;
 using System.ComponentModel;
+using NAudio.CoreAudioApi;
 
 namespace Jarvis.Plugins;
 public class SystemAudioPlugin

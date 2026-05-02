@@ -1,7 +1,7 @@
-﻿using Jarvis.Configuration;
-using Microsoft.Extensions.Options;
+﻿using Microsoft.Extensions.Options;
 using System.Diagnostics;
 using System.Speech.Synthesis;
+using Jarvis.Configuration;
 
 namespace Jarvis.Services {
     public class TextToSpeechService : IDisposable {
