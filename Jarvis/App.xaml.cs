@@ -13,7 +13,6 @@ using Jarvis.Services;
 using Jarvis.ViewModels;
 using Jarvis.Views.Windows;
 using Jarvis.Configuration;
-using Microsoft.Extensions.AI;
 
 namespace Jarvis;
 
@@ -186,8 +185,6 @@ public partial class App : Application {
 
     protected override async void OnStartup(StartupEventArgs e) {
         await _host!.StartAsync();
-        //var memoryService = _host.Services.GetRequiredService<VectorMemoryService>();
-        //await memoryService.EnsureIndexExistsAsync();
         _mainWindow = _host.Services.GetRequiredService<MainWindow>();
         _mainWindow.DataContext = _host.Services.GetRequiredService<MainViewModel>();
         _mainWindow.Closing += MainWindow_Closing;

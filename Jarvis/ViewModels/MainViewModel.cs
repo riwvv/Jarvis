@@ -1,6 +1,6 @@
 ﻿using CommunityToolkit.Mvvm.ComponentModel;
-using Jarvis.Services;
 using System.Diagnostics;
+using Jarvis.Services;
 
 namespace Jarvis.ViewModels {
     public partial class MainViewModel : ObservableObject, IDisposable {

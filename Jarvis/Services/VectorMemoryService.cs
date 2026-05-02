@@ -1,8 +1,8 @@
-﻿using Jarvis.VectorMemory;
-using LiteDB;
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.IO;
 using System.Text;
+using LiteDB;
+using Jarvis.VectorMemory;
 
 namespace Jarvis.Services;
 

@@ -1,10 +1,10 @@
-﻿using Jarvis.Configuration;
-using Microsoft.Extensions.Options;
-using NAudio.Wave;
+﻿using Microsoft.Extensions.Options;
 using System.Diagnostics;
-using System.IO;
 using System.Windows;
+using System.IO;
+using NAudio.Wave;
 using Vosk;
+using Jarvis.Configuration;
 
 namespace Jarvis.Services {
     public class SpeechToTextService : IDisposable {
