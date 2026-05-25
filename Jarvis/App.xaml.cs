@@ -54,7 +54,6 @@ public partial class App : Application {
                 MessageBoxImage.Error);
 
             if (result == MessageBoxResult.Yes) {
-                // Повторяем попытку
                 if (!CheckOllamaConnectSync()) {
                     Environment.Exit(1);
                 }
