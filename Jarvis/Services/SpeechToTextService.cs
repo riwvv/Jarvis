@@ -1,5 +1,4 @@
 ﻿using Microsoft.Extensions.Options;
-using System.Diagnostics;
 using System.Windows;
 using System.IO;
 using NAudio.Wave;
