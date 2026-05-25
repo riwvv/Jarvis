@@ -1,29 +1,31 @@
 ﻿using CommunityToolkit.Mvvm.ComponentModel;
 using System.Diagnostics;
 using Jarvis.Services;
+using Microsoft.Extensions.Logging;
 
 namespace Jarvis.ViewModels {
     public partial class MainViewModel : ObservableObject, IDisposable {
         [ObservableProperty] private string _state = "SLEEP";
         [ObservableProperty] private bool _isSpeaking = false; // Для отображения в UI, потом пригодится
-
+        private readonly ILogger<MainViewModel> _logger;
         private readonly SpeechToTextService _speechToTextService;
         private readonly CommunicationAiService _communicationAiService;
         private readonly TextToSpeechService _textToSpeechService;
 
-        public MainViewModel(SpeechToTextService speechToTextService, CommunicationAiService communicationAiService, TextToSpeechService textToSpeechService) {
+        public MainViewModel(SpeechToTextService speechToTextService, CommunicationAiService communicationAiService, TextToSpeechService textToSpeechService, ILogger<MainViewModel> logger) {
+            _logger = logger;
             _speechToTextService = speechToTextService;
             _communicationAiService = communicationAiService;
             _textToSpeechService = textToSpeechService;
 
             _textToSpeechService.OnStartedSpeaking += () => IsSpeaking = true; // начал говорить
             _textToSpeechService.OnFinishedSpeaking += () => IsSpeaking = false; // закончил говорить
-            _textToSpeechService.OnError += (error) => Debug.WriteLine($"TTS Error: {error}"); // пасхалка на случай ошибок 
+            _textToSpeechService.OnError += (error) => _logger.LogInformation($"TTS Error: {error}"); // пасхалка на случай ошибок 
 
             _speechToTextService.OnSpeechRecognized += async (text) => {
                 if (string.IsNullOrWhiteSpace(text)) return;
 
-                Debug.WriteLine($"Распознана команда: {text}");
+                _logger.LogInformation($"Распознана команда: {text}");
                 var response = await _communicationAiService.GetRequestUser(text);
 
                 if (!string.IsNullOrEmpty(response)) {

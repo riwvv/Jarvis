@@ -13,6 +13,7 @@ using Jarvis.Services;
 using Jarvis.ViewModels;
 using Jarvis.Views.Windows;
 using Jarvis.Configuration;
+using Serilog;
 
 namespace Jarvis;
 
@@ -63,7 +64,15 @@ public partial class App : Application {
         if (_kernelCore == null)
             throw new InvalidOperationException("KernelCore не инициализирован!");
 
-        _host = Host.CreateDefaultBuilder().ConfigureServices((services) => {
+        _host = Host.CreateDefaultBuilder()
+            .UseSerilog((context, config) => {
+                config.ReadFrom.Configuration(_configuration!)
+                .WriteTo.Debug()
+                .WriteTo.File("logs/jarvis-logs.txt", rollingInterval: RollingInterval.Day);
+            })
+            .ConfigureServices((services) => {
+            services.AddMemoryCache();
+
             services.Configure<AISettings>(_configuration!.GetSection("AISettings"));
             services.Configure<SpeechSettings>(_configuration!.GetSection("SpeechSettings"));
 
