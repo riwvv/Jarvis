@@ -69,10 +69,8 @@ namespace Jarvis.Services {
             await _speakSemaphore.WaitAsync(cancellationToken);
 
             try {
-                if (_isSpeaking) {
+                if (_isSpeaking)
                     _synthesizer.SpeakAsyncCancelAll();
-                    await Task.Delay(50, cancellationToken);
-                }
 
                 _logger.LogInformation($"TTS: Озвучивание: \"{cleanText}\"");
                 await Task.Run(() => _synthesizer.SpeakAsync(cleanText), cancellationToken);
@@ -105,19 +103,17 @@ namespace Jarvis.Services {
         private string CleanTextForSpeech(string text) {
             if (string.IsNullOrWhiteSpace(text)) return string.Empty;
 
-            string cleaned = text;
-
-            if (cleaned.StartsWith("DONE:", StringComparison.OrdinalIgnoreCase))
-                cleaned = cleaned.Substring(5).TrimStart();
-            else if (cleaned.StartsWith("WARNING:", StringComparison.OrdinalIgnoreCase))
-                cleaned = cleaned.Substring(8).TrimStart();
-            else if (cleaned.StartsWith("ERROR:", StringComparison.OrdinalIgnoreCase))
-                cleaned = cleaned.Substring(6).TrimStart();
-
-            if (string.IsNullOrWhiteSpace(cleaned) || cleaned == ".")
-                return "Команда выполнена";
-
-            return cleaned;
+            ReadOnlySpan<char> span = text.AsSpan();
+            int spaceIndex = span.IndexOf(' ');
+            if (spaceIndex > 0) {
+                string firstWord = span[..spaceIndex].ToString();
+                if (firstWord.Equals("DONE:", StringComparison.OrdinalIgnoreCase) ||
+                    firstWord.Equals("WARNING:", StringComparison.OrdinalIgnoreCase) ||
+                    firstWord.Equals("ERROR:", StringComparison.OrdinalIgnoreCase)) {
+                    span = span[(spaceIndex + 1)..];
+                }
+            }
+            return span.IsEmpty ? "Команда выполнена" : span.ToString();
         }
 
         public bool IsSpeaking => _isSpeaking;
