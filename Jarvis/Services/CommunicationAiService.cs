@@ -53,40 +53,68 @@ public class CommunicationAiService : IDisposable {
             OnExecute?.Invoke("EXECUTE");
             _logger.LogInformation($"Отправка запроса к AI: {userQuery}");
 
-            // 1. Поиск в памяти и добавление контекста
+            // ========== ОПТИМИЗАЦИЯ: Запускаем поиск в памяти параллельно ==========
+            // Запускаем задачу поиска в памяти (не ждём её завершения)
+            Task<string?>? memoryTask = null;
             if (_memoryService != null) {
-                var longTermContext = await _memoryService.SearchRelevantContextAsync(userQuery);
-                if (!string.IsNullOrEmpty(longTermContext)) {
-                    // Удаляем предыдущие системные сообщения с памятью (начинаются с "Вот что я помню")
-                    var oldMemoryMessages = _history.Where(m =>
-                        m.Role == AuthorRole.System &&
-                        m.Content != null &&
-                        m.Content.StartsWith("Вот что я помню из прошлого")
-                    ).ToList();
-
-                    foreach (var old in oldMemoryMessages) {
-                        _history.Remove(old);
-                    }
-
-                    // Добавляем новый контекст в начало
-                    _history.Insert(0, new ChatMessageContent(AuthorRole.System, longTermContext));
-                    _logger.LogInformation("Добавлен контекст из памяти (старые удалены)");
-                }
+                memoryTask = _memoryService.SearchRelevantContextAsync(userQuery);
+                _logger.LogDebug("Запущен параллельный поиск в памяти");
             }
 
-            // 2. Добавляем вопрос пользователя
+            // ========== ОПТИМИЗАЦИЯ: Сразу добавляем вопрос пользователя в историю ==========
+            // Не ждём память, чтобы LLM могла начать обработку
             _history.AddUserMessage(userQuery);
 
-            // 3. Диагностика: выводим контекст
+            // ========== ОПТИМИЗАЦИЯ: Диагностика контекста (быстрая) ==========
             _logger.LogInformation("=== КОНТЕКСТ ПЕРЕД ОТПРАВКОЙ ===");
             foreach (var message in _history) {
                 var content = message.Content ?? "";
-                _logger.LogInformation($"[{message.Role}]: {content.Substring(0, Math.Min(150, content.Length))}");
+                // Оптимизация: не создаём подстроку, если не нужно
+                if (content.Length > 150) {
+                    _logger.LogInformation($"[{message.Role}]: {content.AsSpan(0, 150)}...");
+                }
+                else {
+                    _logger.LogInformation($"[{message.Role}]: {content}");
+                }
             }
 
-            // 4. Запрос к модели
-            var response = await _chat.GetChatMessageContentAsync(_history, _settings, _kernel, cancellationToken);
+            // ========== ОПТИМИЗАЦИЯ: Запрос к модели и ожидание памяти ПАРАЛЛЕЛЬНО ==========
+            // Запускаем запрос к LLM (это самый долгий этап)
+            var llmTask = _chat.GetChatMessageContentAsync(_history, _settings, _kernel, cancellationToken);
 
+            // Ждём завершения И LLM, И поиска памяти (если он был запущен)
+            if (memoryTask != null) {
+                // Параллельно ждём оба результата
+                await Task.WhenAll(llmTask, memoryTask);
+            }
+            else {
+                await llmTask;
+            }
+
+            // Получаем результаты
+            var response = await llmTask;
+            var longTermContext = memoryTask?.Result;
+
+            // ========== ОПТИМИЗАЦИЯ: Добавляем контекст памяти ПОСЛЕ ответа LLM ==========
+            // Важное замечание: контекст памяти будет использован в СЛЕДУЮЩЕМ запросе
+            if (!string.IsNullOrEmpty(longTermContext)) {
+                // Удаляем предыдущие системные сообщения с памятью
+                var oldMemoryMessages = _history.Where(m =>
+                    m.Role == AuthorRole.System &&
+                    m.Content != null &&
+                    m.Content.StartsWith("Вот что я помню из прошлого")
+                ).ToList();
+
+                foreach (var old in oldMemoryMessages) {
+                    _history.Remove(old);
+                }
+
+                // Добавляем новый контекст в начало
+                _history.Insert(0, new ChatMessageContent(AuthorRole.System, longTermContext));
+                _logger.LogInformation("Добавлен контекст из памяти для следующих запросов (старые удалены)");
+            }
+
+            // Обработка ответа (как было)
             if (response != null && !string.IsNullOrEmpty(response.Content)) {
                 _history.AddAssistantMessage(response.Content);
 

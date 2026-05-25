@@ -31,6 +31,8 @@ public partial class App : Application {
         LoadConfiguration();
         InitializedSemanticKernel();
         InitializedDI();
+
+        _host!.Services.GetRequiredService<SpeechToTextService>().OnWakeWordDetected += () => Dispatcher.Invoke(ShowAsOverlay);
     }
 
     private void LoadConfiguration() {
@@ -42,11 +44,24 @@ public partial class App : Application {
     }
 
     private async void InitializedSemanticKernel() {
-        var ollamaOk = await CheckOllamaConnectAsync();
-        if (!ollamaOk) {
-            MessageBox.Show("Ollama не запущена!", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
-            Shutdown();
-            return;
+        if (!CheckOllamaConnectSync()) {
+            var result = MessageBox.Show(
+                "Ollama не запущена!\n\n" +
+                "Пожалуйста, запустите Ollama из меню 'Пуск' или скачайте с ollama.ai\n\n" +
+                "Попробовать снова?",
+                "Ошибка подключения",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Error);
+
+            if (result == MessageBoxResult.Yes) {
+                // Повторяем попытку
+                if (!CheckOllamaConnectSync()) {
+                    Environment.Exit(1);
+                }
+            }
+            else {
+                Environment.Exit(1);
+            }
         }
         var aiSettings = _configuration!.GetSection("AISettings").Get<AISettings>();
 
@@ -91,14 +106,15 @@ public partial class App : Application {
             }).Build();
     }
 
-    private async Task<bool> CheckOllamaConnectAsync() {
+    private bool CheckOllamaConnectSync() {
         using var client = new HttpClient();
         client.Timeout = TimeSpan.FromSeconds(15);
         try {
-            var response = await client.GetAsync("http://localhost:11434/api/tags");
+            var response = client.GetAsync("http://localhost:11434/api/tags").GetAwaiter().GetResult(); ;
             return response.IsSuccessStatusCode;
         }
-        catch {
+        catch(Exception ex) {
+            MessageBox.Show(ex.Message);
             return false;
         }
     }
