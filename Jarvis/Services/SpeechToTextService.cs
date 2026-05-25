@@ -31,9 +31,9 @@ namespace Jarvis.Services {
         ];
 
         private enum RecognizerState {
-            Sleeping,    // Спит, ждёт wake word
-            Listening,   // Проснулся, слушает команду
-            Processing   // Обрабатывает речь
+            Sleeping,
+            Listening,
+            Processing
         }
         private RecognizerState _state = RecognizerState.Sleeping;
 
@@ -63,7 +63,6 @@ namespace Jarvis.Services {
 
         private void InitializeVosk() {
             try {
-                // Путь к модели Vosk 0.42 внутри проекта
                 string modelPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, _settings.SttModelPath);
                 if (!Directory.Exists(modelPath)) {
                     throw new DirectoryNotFoundException($"Vosk модель не найдена: {modelPath}");
@@ -157,10 +156,8 @@ namespace Jarvis.Services {
         }
 
         private void OnAudioDataAvailable(object? sender, WaveInEventArgs e) {
-            lock (_lockObject) {
-                // Передаём оригинальный буфер напрямую
+            lock (_lockObject) 
                 ProcessAudioData(e.Buffer, e.BytesRecorded);
-            }
         }
 
         private void ProcessAudioData(byte[] buffer, int bytesRecorded) {

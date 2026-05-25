@@ -23,10 +23,7 @@ public class VectorMemoryService {
         _db = new LiteDatabase(dbPath);
         _collection = _db.GetCollection<MemoryEntry>("memories");
 
-        // Автоиндексация по времени
         _collection.EnsureIndex(x => x.Timestamp);
-
-        // Текстовый индекс для полнотекстового поиска
         _collection.EnsureIndex(x => x.UserPrompt);
 
         _logger.LogInformation("VectorMemoryService инициализирован с индексами");
@@ -48,15 +45,12 @@ public class VectorMemoryService {
     }
 
     public Task<string?> SearchRelevantContextAsync(string userMessage, int topK = 3) {
-        // Быстрый путь: если запрос пустой
-        if (string.IsNullOrWhiteSpace(userMessage)) {
+        if (string.IsNullOrWhiteSpace(userMessage))
             return Task.FromResult<string?>(null);
-        }
 
-        // Подготавливаем слова для поиска
         var searchWords = userMessage.ToLower()
             .Split([' ', ',', '.', '?', '!', ';', ':', '\n', '\r'], StringSplitOptions.RemoveEmptyEntries)
-            .Distinct() // Убираем дубликаты слов
+            .Distinct()
             .ToList();
 
         if (searchWords.Count == 0) {
@@ -163,10 +157,7 @@ public class VectorMemoryService {
         }
     }
 
-    // Вспомогательные методы
-    private bool IsRecent(DateTime timestamp) {
-        return (DateTime.UtcNow - timestamp).TotalHours < 24;
-    }
+    private bool IsRecent(DateTime timestamp) => (DateTime.UtcNow - timestamp).TotalHours < 24;
 
     private string TruncateText(string text, int maxLength) {
         if (string.IsNullOrEmpty(text) || text.Length <= maxLength)
@@ -195,6 +186,6 @@ public class VectorMemoryService {
         var common = aWords.Intersect(bWords, StringComparer.OrdinalIgnoreCase).Count();
         var minLength = Math.Min(aWords.Length, bWords.Length);
 
-        return common > minLength * 0.7; // 70% совпадения
+        return common > minLength * 0.7;
     }
 }

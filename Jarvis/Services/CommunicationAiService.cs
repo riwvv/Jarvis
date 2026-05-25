@@ -83,22 +83,17 @@ public class CommunicationAiService : IDisposable {
             var llmTask = _chat.GetChatMessageContentAsync(_history, _settings, _kernel, cancellationToken);
 
             // Ждём завершения И LLM, И поиска памяти (если он был запущен)
-            if (memoryTask != null) {
-                // Параллельно ждём оба результата
+            if (memoryTask != null)
                 await Task.WhenAll(llmTask, memoryTask);
-            }
-            else {
+            else
                 await llmTask;
-            }
 
-            // Получаем результаты
             var response = await llmTask;
             var longTermContext = memoryTask?.Result;
 
             // ========== ОПТИМИЗАЦИЯ: Добавляем контекст памяти ПОСЛЕ ответа LLM ==========
             // Важное замечание: контекст памяти будет использован в СЛЕДУЮЩЕМ запросе
             if (!string.IsNullOrEmpty(longTermContext)) {
-                // Удаляем предыдущие системные сообщения с памятью
                 var oldMemoryMessages = _history.Where(m =>
                     m.Role == AuthorRole.System &&
                     m.Content != null &&
@@ -114,7 +109,6 @@ public class CommunicationAiService : IDisposable {
                 _logger.LogInformation("Добавлен контекст из памяти для следующих запросов (старые удалены)");
             }
 
-            // Обработка ответа (как было)
             if (response != null && !string.IsNullOrEmpty(response.Content)) {
                 _history.AddAssistantMessage(response.Content);
 
