@@ -3,6 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Configuration;
 using Hardcodet.Wpf.TaskbarNotification;
+using Serilog;
 using System.Windows.Controls;
 using System.Windows;
 using System.Drawing;
@@ -13,13 +14,10 @@ using Jarvis.Services;
 using Jarvis.ViewModels;
 using Jarvis.Views.Windows;
 using Jarvis.Configuration;
-using Serilog;
 
 namespace Jarvis;
 
 public partial class App : Application {
-    public static IServiceProvider? Services { get; private set; }
-
     private IHost? _host;
     private Kernel? _kernelCore;
     private IConfiguration? _configuration;
@@ -43,8 +41,13 @@ public partial class App : Application {
         _configuration = builder.Build();
     }
 
-    private void InitializedSemanticKernel() {
-        CheckOllamaConnect();
+    private async void InitializedSemanticKernel() {
+        var ollamaOk = await CheckOllamaConnectAsync();
+        if (!ollamaOk) {
+            MessageBox.Show("Ollama не запущена!", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
+            Shutdown();
+            return;
+        }
         var aiSettings = _configuration!.GetSection("AISettings").Get<AISettings>();
 
         var builder = Kernel.CreateBuilder();
@@ -71,40 +74,37 @@ public partial class App : Application {
                 .WriteTo.File("logs/jarvis-logs.txt", rollingInterval: RollingInterval.Day);
             })
             .ConfigureServices((services) => {
-            services.AddMemoryCache();
+                services.AddMemoryCache();
 
-            services.Configure<AISettings>(_configuration!.GetSection("AISettings"));
-            services.Configure<SpeechSettings>(_configuration!.GetSection("SpeechSettings"));
+                services.Configure<AISettings>(_configuration!.GetSection("AISettings"));
+                services.Configure<SpeechSettings>(_configuration!.GetSection("SpeechSettings"));
 
-            services.AddSingleton(_kernelCore!);
-            services.AddSingleton<SpeechToTextService>();
-            services.AddSingleton<TextToSpeechService>();
-            services.AddSingleton<CommunicationAiService>();
-            services.AddSingleton<VectorMemoryService>();
+                services.AddSingleton(_kernelCore!);
+                services.AddSingleton<SpeechToTextService>();
+                services.AddSingleton<TextToSpeechService>();
+                services.AddSingleton<CommunicationAiService>();
+                services.AddSingleton<VectorMemoryService>();
 
-            services.AddSingleton<MainViewModel>();
+                services.AddSingleton<MainViewModel>();
 
-            services.AddSingleton<MainWindow>();
-        }).Build();
-
-        Services = _host.Services;
+                services.AddSingleton<MainWindow>();
+            }).Build();
     }
 
-    private async void CheckOllamaConnect() {
+    private async Task<bool> CheckOllamaConnectAsync() {
         using var client = new HttpClient();
         client.Timeout = TimeSpan.FromSeconds(15);
         try {
             var response = await client.GetAsync("http://localhost:11434/api/tags");
-            if (!response.IsSuccessStatusCode)
-                throw new Exception();
+            return response.IsSuccessStatusCode;
         }
         catch {
-            MessageBox.Show("Ollama не запущена! Пожалуйста, запустите Ollama и попробуйте снова.", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
-            Environment.Exit(1);
+            return false;
         }
     }
 
     private void InitializeSystemTray() {
+        if (_trayIcon != null) return;
         string iconPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Images", "JarvisImg.ico");
         _trayIcon = new TaskbarIcon {
             Icon = new Icon(iconPath),
@@ -179,7 +179,7 @@ public partial class App : Application {
         _mainWindow.Top = SystemParameters.WorkArea.Height - _mainWindow.Height - 20;
 
         _mainWindow.Activate();
-        _autoHideTimer!.Start();
+        _autoHideTimer?.Start();
     }
 
     private void ExitApplication() {
@@ -203,15 +203,21 @@ public partial class App : Application {
     }
 
     protected override async void OnStartup(StartupEventArgs e) {
-        await _host!.StartAsync();
-        _mainWindow = _host.Services.GetRequiredService<MainWindow>();
-        _mainWindow.DataContext = _host.Services.GetRequiredService<MainViewModel>();
-        _mainWindow.Closing += MainWindow_Closing;
+        try {
+            await _host!.StartAsync();
+            _mainWindow = _host.Services.GetRequiredService<MainWindow>();
+            _mainWindow.DataContext = _host.Services.GetRequiredService<MainViewModel>();
+            _mainWindow.Closing += MainWindow_Closing;
 
-        base.OnStartup(e);
-        InitializeSystemTray();
-        SetupAutoHideTimer();
-
+            base.OnStartup(e);
+            InitializeSystemTray();
+            SetupAutoHideTimer();
+        }
+        catch (Exception ex) {
+            Log.Error(ex, "Ошибка при запуске");
+            MessageBox.Show($"Ошибка запуска: {ex.Message}", "Критическая ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
+            Shutdown();
+        }
     }
 
     protected override async void OnExit(ExitEventArgs e) {

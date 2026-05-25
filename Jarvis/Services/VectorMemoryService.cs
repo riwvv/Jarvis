@@ -1,5 +1,4 @@
-﻿using System.Diagnostics;
-using System.IO;
+﻿using System.IO;
 using System.Text;
 using LiteDB;
 using Jarvis.VectorMemory;

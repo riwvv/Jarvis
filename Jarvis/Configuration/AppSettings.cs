@@ -1,6 +1,4 @@
-﻿using System.IO;
-
-namespace Jarvis.Configuration;
+﻿namespace Jarvis.Configuration;
 
 public class AppSettings {
     public AISettings AISettings { get; set; } = new();
