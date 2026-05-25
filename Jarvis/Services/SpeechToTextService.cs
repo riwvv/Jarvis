@@ -1,5 +1,4 @@
 ﻿using Microsoft.Extensions.Options;
-using System.Diagnostics;
 using System.Windows;
 using System.IO;
 using NAudio.Wave;
@@ -13,7 +12,8 @@ namespace Jarvis.Services {
         public event Action<string>? OnProcessingText;   // Распознаёт текст
         public event Action<string>? OnSpeechRecognized; // Команда распознана
         public event Action<string>? OnTimeout;          // Уснул (таймаут)
-        
+        public event Action? OnWakeWordDetected;
+
         private int SAMPLE_RATE;
         private const int CHANNELS = 1;
         private const int BUFFER_MS = 250;
@@ -31,9 +31,9 @@ namespace Jarvis.Services {
         ];
 
         private enum RecognizerState {
-            Sleeping,    // Спит, ждёт wake word
-            Listening,   // Проснулся, слушает команду
-            Processing   // Обрабатывает речь
+            Sleeping,
+            Listening,
+            Processing
         }
         private RecognizerState _state = RecognizerState.Sleeping;
 
@@ -63,7 +63,6 @@ namespace Jarvis.Services {
 
         private void InitializeVosk() {
             try {
-                // Путь к модели Vosk 0.42 внутри проекта
                 string modelPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, _settings.SttModelPath);
                 if (!Directory.Exists(modelPath)) {
                     throw new DirectoryNotFoundException($"Vosk модель не найдена: {modelPath}");
@@ -129,14 +128,21 @@ namespace Jarvis.Services {
                     _logger.LogInformation("Микрофон запущен");
                 }
                 catch (InvalidOperationException ex) {
-                    _logger.LogInformation($"Микрофон уже записывает: {ex.Message}");
+                    _logger.LogWarning(ex, "Микрофон уже записывает, перезапуск");
                     StopListening();
-                    Thread.Sleep(100);
-                    _microphone.StartRecording();
-                    _isRecording = true;
-                }
-                catch (Exception ex) {
-                    _logger.LogInformation($"Ошибка запуска микрофона: {ex.Message}");
+                    _ = Task.Delay(50).ContinueWith(_ => {
+                        lock (_micLock) {
+                            if (_microphone != null && !_isRecording) {
+                                try {
+                                    _microphone.StartRecording();
+                                    _isRecording = true;
+                                }
+                                catch (Exception innerEx) {
+                                    _logger.LogError(innerEx, "Не удалось перезапустить микрофон");
+                                }
+                            }
+                        }
+                    });
                 }
             }
         }
@@ -150,23 +156,23 @@ namespace Jarvis.Services {
         }
 
         private void OnAudioDataAvailable(object? sender, WaveInEventArgs e) {
-            lock (_lockObject) {
-                byte[] audioData = [.. e.Buffer.Take(e.BytesRecorded)];
+            lock (_lockObject) 
+                ProcessAudioData(e.Buffer, e.BytesRecorded);
+        }
 
-                switch (_state) {
-                    case RecognizerState.Sleeping:
-                        ProcessWakeWordDetection(audioData);
-                        break;
-
-                    case RecognizerState.Listening:
-                    case RecognizerState.Processing:
-                        ProcessCommandRecognition(audioData);
-                        break;
-                }
+        private void ProcessAudioData(byte[] buffer, int bytesRecorded) {
+            switch (_state) {
+                case RecognizerState.Sleeping:
+                    ProcessWakeWordDetection(buffer, bytesRecorded);
+                    break;
+                case RecognizerState.Listening:
+                case RecognizerState.Processing:
+                    ProcessCommandRecognition(buffer, bytesRecorded);
+                    break;
             }
         }
 
-        private void ProcessWakeWordDetection(byte[] audioData) {
+        private void ProcessWakeWordDetection(byte[] audioData, int bytesRecorded) {
             if (_wakeWordRecognizer == null) return;
 
             if (_wakeWordRecognizer.AcceptWaveform(audioData, audioData.Length)) {
@@ -175,7 +181,7 @@ namespace Jarvis.Services {
                 string normalized = NormalizeText(recognizedText);
 
                 if (IsWakeWordMatch(normalized)) {
-                    ((App)App.Current).OnVoiceWakeWord();
+                    OnWakeWordDetected?.Invoke();
                     _state = RecognizerState.Listening;
                     OnWakeUp?.Invoke("LISTENING");
                     ResetInactivityTimer();
@@ -185,7 +191,7 @@ namespace Jarvis.Services {
             }
         }
 
-        private void ProcessCommandRecognition(byte[] audioData) {
+        private void ProcessCommandRecognition(byte[] audioData, int bytesRecorded) {
             if (_commandRecognizer == null) return;
 
             if (_state == RecognizerState.Listening) {
@@ -208,9 +214,11 @@ namespace Jarvis.Services {
                 string partialResult = _commandRecognizer.PartialResult();
                 string partialText = ExtractPartialText(partialResult);
 
+#if DEBUG
                 if (!string.IsNullOrWhiteSpace(partialText)) {
-                    _logger.LogInformation($"Частичный результат: {partialText}");
+                    _logger.LogDebug($"Частичный результат: {partialText}");
                 }
+#endif
             }
         }
 
@@ -225,15 +233,21 @@ namespace Jarvis.Services {
 
         private void ResetInactivityTimer() {
             lock (_lockObject) {
-                _inactivityTimer?.Dispose();
-                _inactivityTimer = new Timer(_ => {
-                    lock (_lockObject) {
-                        if (_state != RecognizerState.Sleeping) {
-                            _logger.LogInformation("Таймаут бездействия, переход в режим сна");
-                            GoToSleep();
-                        }
-                    }
-                }, null, INACTIVITY_TIMEOUT_MS, Timeout.Infinite);
+                if (_inactivityTimer == null) {
+                    _inactivityTimer = new Timer(_ => OnInactivityTimeout(), null, INACTIVITY_TIMEOUT_MS, Timeout.Infinite);
+                }
+                else {
+                    _inactivityTimer.Change(INACTIVITY_TIMEOUT_MS, Timeout.Infinite);
+                }
+            }
+        }
+
+        private void OnInactivityTimeout() {
+            lock (_lockObject) {
+                if (_state != RecognizerState.Sleeping) {
+                    _logger.LogInformation("Таймаут бездействия, переход в режим сна");
+                    GoToSleep();
+                }
             }
         }
 
@@ -243,7 +257,9 @@ namespace Jarvis.Services {
                 if (json.RootElement.TryGetProperty("text", out var textProp))
                     return textProp.GetString() ?? string.Empty;
             }
-            catch { }
+            catch (System.Text.Json.JsonException ex) {
+                _logger.LogError(ex, "Ошибка парсинга JSON результата: {Result}", result);
+            }
             return string.Empty;
         }
 
@@ -278,7 +294,8 @@ namespace Jarvis.Services {
         public void Start() => StartListening();
 
         public void Dispose() {
-            StopListening();
+            lock (_micLock)
+                StopListening();
 
             lock (_lockObject) {
                 _inactivityTimer?.Dispose();
