@@ -3,14 +3,20 @@ using System.IO;
 using System.Text;
 using LiteDB;
 using Jarvis.VectorMemory;
+using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Logging;
 
 namespace Jarvis.Services;
 
 public class VectorMemoryService {
+    private readonly ILogger<VectorMemoryService> _logger;
+    private readonly IMemoryCache _cache; // добавить кэш
     private readonly LiteDatabase _db;
     private readonly ILiteCollection<MemoryEntry> _collection;
 
-    public VectorMemoryService() {
+    public VectorMemoryService(IMemoryCache memoryCache, ILogger<VectorMemoryService> logger) {
+        _logger = logger;
+        _cache = memoryCache;
         // Храним базу данных в папке пользователя, не в папке с программой
         var appData = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Jarvis");
         Directory.CreateDirectory(appData);
@@ -33,29 +39,39 @@ public class VectorMemoryService {
             Timestamp = DateTime.UtcNow
         });
 
-        Debug.WriteLine($"Сохранено в LiteDB: {userPrompt} -> {assistantResponse}");
+        _logger.LogInformation($"Сохранено в LiteDB: {userPrompt} -> {assistantResponse}");
         return Task.CompletedTask;
     }
 
     public Task<string?> SearchRelevantContextAsync(string userMessage, int topK = 3) {
-        var searchWords = userMessage.ToLower().Split(new[] { ' ', ',', '.', '?', '!' }, StringSplitOptions.RemoveEmptyEntries);
+        var searchWords = userMessage.ToLower().Split([' ', ',', '.', '?', '!'], StringSplitOptions.RemoveEmptyEntries);
         var all = _collection.Query().ToList();
 
         if (all.Count == 0) {
-            Debug.WriteLine("LiteDB: нет сохранённых записей");
+            _logger.LogInformation("LiteDB: нет сохранённых записей");
             return Task.FromResult<string?>(null);
         }
 
         var results = new List<(MemoryEntry entry, int score)>();
         foreach (var entry in all) {
-            var promptWords = entry.UserPrompt.ToLower().Split(new[] { ' ', ',', '.', '?', '!' }, StringSplitOptions.RemoveEmptyEntries);
+            var promptWords = entry.UserPrompt.ToLower().Split([' ', ',', '.', '?', '!'], StringSplitOptions.RemoveEmptyEntries);
             var score = searchWords.Count(w => promptWords.Contains(w));
             if (score > 0) results.Add((entry, score));
         }
 
         if (!results.Any()) return Task.FromResult<string?>(null);
 
-        var topResults = results.OrderByDescending(r => r.score).Take(topK).ToList();
+        var topResults = results.OrderByDescending(r => r.score).Take(topK * 2).ToList(); // Берём с запасом
+
+        // Дедупликация: если UserPrompt очень похожи, оставляем один
+        var uniqueResults = new List<(MemoryEntry entry, int score)>();
+        foreach (var result in topResults) {
+            if (!uniqueResults.Any(u => AreSimilar(u.entry.UserPrompt, result.entry.UserPrompt))) {
+                uniqueResults.Add(result);
+                if (uniqueResults.Count >= topK) break;
+            }
+        }
+
         var sb = new StringBuilder();
         sb.AppendLine("Вот что я помню из прошлого:");
         foreach (var (entry, score) in topResults) {
@@ -64,5 +80,14 @@ public class VectorMemoryService {
         }
 
         return Task.FromResult<string?>(sb.ToString());
+    }
+
+    private bool AreSimilar(string a, string b) {
+        if (a == b) return true;
+        if (Math.Abs(a.Length - b.Length) > 5) return false;
+        var aWords = a.Split(' ');
+        var bWords = b.Split(' ');
+        var common = aWords.Intersect(bWords).Count();
+        return common > Math.Min(aWords.Length, bWords.Length) * 0.7; // 70% совпадения
     }
 }
