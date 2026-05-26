@@ -21,6 +21,7 @@ public partial class App : Application {
     private IHost? _host;
     private Kernel? _kernelCore;
     private IConfiguration? _configuration;
+    private TrayService? _trayService;
 
     private TaskbarIcon? _trayIcon;
     private MainWindow? _mainWindow;
@@ -32,7 +33,7 @@ public partial class App : Application {
         InitializedSemanticKernel();
         InitializedDI();
 
-        _host!.Services.GetRequiredService<SpeechToTextService>().OnWakeWordDetected += () => Dispatcher.Invoke(ShowAsOverlay);
+        //_host!.Services.GetRequiredService<SpeechToTextService>().OnWakeWordDetected += () => Dispatcher.Invoke(ShowAsOverlay);
     }
 
     private void LoadConfiguration() {
@@ -98,6 +99,7 @@ public partial class App : Application {
                 services.AddSingleton<TextToSpeechService>();
                 services.AddSingleton<CommunicationAiService>();
                 services.AddSingleton<VectorMemoryService>();
+                services.AddSingleton<TrayService>();
 
                 services.AddSingleton<MainViewModel>();
 
@@ -118,90 +120,90 @@ public partial class App : Application {
         }
     }
 
-    private void InitializeSystemTray() {
-        if (_trayIcon != null) return;
-        string iconPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Images", "JarvisImg.ico");
-        _trayIcon = new TaskbarIcon {
-            Icon = new Icon(iconPath),
-            ToolTipText = "Jarvis"
-        };
+    //private void InitializeSystemTray() {
+    //    if (_trayIcon != null) return;
+    //    string iconPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Images", "JarvisImg.ico");
+    //    _trayIcon = new TaskbarIcon {
+    //        Icon = new Icon(iconPath),
+    //        ToolTipText = "Jarvis"
+    //    };
 
-        var contextMenu = new ContextMenu();
+    //    var contextMenu = new ContextMenu();
 
-        var openItem = new MenuItem { Header = "Открыть" };
-        openItem.Click += (s, e) => ShowNormalWindow();
+    //    var openItem = new MenuItem { Header = "Открыть" };
+    //    openItem.Click += (s, e) => ShowNormalWindow();
 
-        var autoModeItem = new MenuItem { Header = "Авто-режим" };
-        autoModeItem.Click += (s, e) => SetAutoMode();
+    //    var autoModeItem = new MenuItem { Header = "Авто-режим" };
+    //    autoModeItem.Click += (s, e) => SetAutoMode();
 
-        var exitItem = new MenuItem { Header = "Выход" };
-        exitItem.Click += (s, e) => ExitApplication();
+    //    var exitItem = new MenuItem { Header = "Выход" };
+    //    exitItem.Click += (s, e) => ExitApplication();
 
-        contextMenu.Items.Add(openItem);
-        contextMenu.Items.Add(autoModeItem);
-        contextMenu.Items.Add(new Separator());
-        contextMenu.Items.Add(exitItem);
+    //    contextMenu.Items.Add(openItem);
+    //    contextMenu.Items.Add(autoModeItem);
+    //    contextMenu.Items.Add(new Separator());
+    //    contextMenu.Items.Add(exitItem);
 
-        _trayIcon.ContextMenu = contextMenu;
-    }
+    //    _trayIcon.ContextMenu = contextMenu;
+    //}
 
-    private void MainWindow_Closing(object? sender, System.ComponentModel.CancelEventArgs e) {
-        e.Cancel = true;
+    //private void MainWindow_Closing(object? sender, System.ComponentModel.CancelEventArgs e) {
+    //    e.Cancel = true;
 
-        HideToTray();
-    }
+    //    HideToTray();
+    //}
 
-    private void SetupAutoHideTimer() {
-        _autoHideTimer = new System.Timers.Timer(2500);
-        _autoHideTimer.Elapsed += (s, e) => {
-            Dispatcher.Invoke(() => {
-                if (_isAutoMode && !_mainWindow!.IsActive) {
-                    HideToTray();
-                }
-            });
-        };
-        _autoHideTimer.AutoReset = false;
-    }
+    //private void SetupAutoHideTimer() {
+    //    _autoHideTimer = new System.Timers.Timer(2500);
+    //    _autoHideTimer.Elapsed += (s, e) => {
+    //        Dispatcher.Invoke(() => {
+    //            if (_isAutoMode && !_mainWindow!.IsActive) {
+    //                HideToTray();
+    //            }
+    //        });
+    //    };
+    //    _autoHideTimer.AutoReset = false;
+    //}
 
-    private void ShowNormalWindow() {
-        _isAutoMode = false;
-        _mainWindow!.Show();
-        _mainWindow.WindowState = WindowState.Normal;
-        _mainWindow.ShowInTaskbar = true;
-        _mainWindow.Topmost = false;
-        _mainWindow.Activate();
-    }
+    //private void ShowNormalWindow() {
+    //    _isAutoMode = false;
+    //    _mainWindow!.Show();
+    //    _mainWindow.WindowState = WindowState.Normal;
+    //    _mainWindow.ShowInTaskbar = true;
+    //    _mainWindow.Topmost = false;
+    //    _mainWindow.Activate();
+    //}
 
-    private void SetAutoMode() {
-        _isAutoMode = true;
-        HideToTray();
-    }
+    //private void SetAutoMode() {
+    //    _isAutoMode = true;
+    //    HideToTray();
+    //}
 
-    private void HideToTray() {
-        _mainWindow!.Hide();
-        _mainWindow.ShowInTaskbar = false;
-    }
+    //private void HideToTray() {
+    //    _mainWindow!.Hide();
+    //    _mainWindow.ShowInTaskbar = false;
+    //}
 
-    public void ShowAsOverlay() {
-        if (!_isAutoMode) return;
+    //public void ShowAsOverlay() {
+    //    if (!_isAutoMode) return;
 
-        _mainWindow!.Show();
-        _mainWindow.WindowState = WindowState.Normal;
-        _mainWindow.Topmost = true;
-        _mainWindow.ShowInTaskbar = false;
+    //    _mainWindow!.Show();
+    //    _mainWindow.WindowState = WindowState.Normal;
+    //    _mainWindow.Topmost = true;
+    //    _mainWindow.ShowInTaskbar = false;
 
-        _mainWindow.Left = SystemParameters.WorkArea.Width - _mainWindow.Width - 20;
-        _mainWindow.Top = SystemParameters.WorkArea.Height - _mainWindow.Height - 20;
+    //    _mainWindow.Left = SystemParameters.WorkArea.Width - _mainWindow.Width - 20;
+    //    _mainWindow.Top = SystemParameters.WorkArea.Height - _mainWindow.Height - 20;
 
-        _mainWindow.Activate();
-        _autoHideTimer?.Start();
-    }
+    //    _mainWindow.Activate();
+    //    _autoHideTimer?.Start();
+    //}
 
-    private void ExitApplication() {
-        _autoHideTimer?.Dispose();
-        _trayIcon?.Dispose();
-        Shutdown();
-    }
+    //private void ExitApplication() {
+    //    _autoHideTimer?.Dispose();
+    //    _trayIcon?.Dispose();
+    //    Shutdown();
+    //}
 
     private async void CheckOllamaConnect() {
         using var client = new HttpClient();
@@ -222,11 +224,17 @@ public partial class App : Application {
             await _host!.StartAsync();
             _mainWindow = _host.Services.GetRequiredService<MainWindow>();
             _mainWindow.DataContext = _host.Services.GetRequiredService<MainViewModel>();
-            _mainWindow.Closing += MainWindow_Closing;
+            _trayService = _host.Services.GetRequiredService<TrayService>();
+
+            var speechService = _host.Services.GetRequiredService<SpeechToTextService>();
+            speechService.OnWakeWordDetected += () =>
+            {
+                Dispatcher.Invoke(() => _trayService?.ShowAsOverlay());
+            };
 
             base.OnStartup(e);
-            InitializeSystemTray();
-            SetupAutoHideTimer();
+            //InitializeSystemTray();
+            //SetupAutoHideTimer();
         }
         catch (Exception ex) {
             Log.Error(ex, "Ошибка при запуске");
