@@ -1,31 +1,16 @@
-﻿using Microsoft.SemanticKernel;
-using Microsoft.Extensions.DependencyInjection;
+﻿using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Configuration;
-using Hardcodet.Wpf.TaskbarNotification;
 using Serilog;
-using System.Windows.Controls;
 using System.Windows;
-using System.Drawing;
-using System.IO;
-using System.Net.Http;
-using Jarvis.Plugins;
 using Jarvis.Services;
 using Jarvis.ViewModels;
 using Jarvis.Views.Windows;
-using Jarvis.Configuration;
 using Jarvis.Extensions;
 
 namespace Jarvis;
 
 public partial class App : Application {
     private IHost? _host;
-    private Kernel? _kernelCore;
-    private IConfiguration? _configuration;
-    private TrayService? _trayService;
-    private SpeechToTextService _speechToTextService;
-
-    private MainWindow? _mainWindow;
 
     public App() => _host = CreateHostBuilder().Build();
 
@@ -45,73 +30,51 @@ public partial class App : Application {
                     .AddViews();
         });
 
-    protected override async void OnStartup(StartupEventArgs e)
-    {
+    protected override async void OnStartup(StartupEventArgs e) {
         base.OnStartup(e);
 
-        if (_host == null)
-        {
+        if (_host == null) {
             Log.Error("При запуске хост равен нулю.");
             Shutdown();
             return;
         }
 
-        try
-        {
+        try {
             await _host!.StartAsync();
-
             Log.Information("Приложение запускается...");
 
-            _kernelCore = await _host.Services.InitializeKernelWithValidationAsync();
-
-            if (_kernelCore == null)
-            {
+            var kernelCore = await _host.Services.InitializeKernelWithValidationAsync();
+            if (kernelCore == null) {
                 Shutdown();
                 return;
             }
 
-            _mainWindow = _host.Services.GetRequiredService<MainWindow>();
-            _mainWindow.DataContext = _host.Services.GetRequiredService<MainViewModel>();
-            _trayService = _host.Services.GetRequiredService<TrayService>();
-            _trayService.Initialize(_mainWindow);
+            var mainWindow = _host.Services.GetRequiredService<MainWindow>();
+            var trayService = _host.Services.GetRequiredService<TrayService>();
             var aiService = _host.Services.GetRequiredService<CommunicationAiService>();
-
-            aiService.SetTrayService(_trayService);
-
-            aiService.OnResult += (status) =>
-            {
-                Dispatcher.Invoke(() =>
-                {
-                    _trayService?.HideOverlayAfterCommand();
-                });
-            };
-
             var speechService = _host.Services.GetRequiredService<SpeechToTextService>();
-            speechService.OnWakeWordDetected += () =>
-            {
-                Dispatcher.Invoke(() => _trayService?.ShowAsOverlay());
-            };
+
+            mainWindow.DataContext = _host.Services.GetRequiredService<MainViewModel>();
+            trayService.Initialize(mainWindow);
+            aiService.SetTrayService(trayService);
+            aiService.OnResult += (status) => Dispatcher.Invoke(() => trayService.HideOverlayAfterCommand());
+            speechService.OnWakeWordDetected += () => Dispatcher.Invoke(() => trayService.ShowAsOverlay());
 
             Log.Information("Приложение успешно запущено");
         }
-        catch (Exception ex)
-        {
+        catch (Exception ex) {
             Log.Error(ex, "Критическая ошибка при запуске приложения");
-
             MessageBox.Show(
                 $"Ошибка запуска: {ex.Message}\n\nПодробности в логах: logs/jarvis-logs.txt",
                 "Критическая ошибка",
                 MessageBoxButton.OK,
                 MessageBoxImage.Error);
-
             Shutdown();
         }
     }
 
-
     protected override async void OnExit(ExitEventArgs e) {
         Log.Information("Приложение завершает работу...");
-
         try {
             if (_host != null) {
                 await _host.StopAsync(TimeSpan.FromSeconds(5));
@@ -134,12 +97,7 @@ public partial class App : Application {
                 }
             }
         }
-
         Log.CloseAndFlush();
         base.OnExit(e);
-    }
-
-    protected override void OnSessionEnding(SessionEndingCancelEventArgs e) {
-        base.OnSessionEnding(e);
     }
 }
