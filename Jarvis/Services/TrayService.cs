@@ -1,14 +1,9 @@
 ﻿using Hardcodet.Wpf.TaskbarNotification;
 using Jarvis.Views.Windows;
-using Microsoft.Extensions.DependencyInjection;
-using System;
-using System.Collections.Generic;
 using System.Drawing;
 using System.IO;
-using System.Text;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Threading;
 
 namespace Jarvis.Services
 {
