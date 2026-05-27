@@ -1,5 +1,4 @@
-﻿using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
+﻿using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.SemanticKernel;
 using System.Drawing;
@@ -18,7 +17,6 @@ namespace Jarvis;
 public partial class App : Application {
     private IHost? _host;
     private Kernel? _kernelCore;
-    private IConfiguration? _configuration;
     private SpeechToTextService? _speechToTextService;
 
     private TaskbarIcon? _trayIcon;
@@ -26,36 +24,23 @@ public partial class App : Application {
     private System.Timers.Timer? _autoHideTimer;
     private bool _isAutoMode = true;
 
-    public App() {
-        LoadConfiguration();
-        _host = CreateHostBuilder().Build();
-    }
+    public App() => _host = CreateHostBuilder().Build();
 
     private IHostBuilder CreateHostBuilder() => Host.CreateDefaultBuilder()
         .UseSerilog((context, services, config) => {
-            config.ReadFrom.Configuration(_configuration!)
+            config.ReadFrom.Configuration(context.Configuration)
                 .WriteTo.Debug()
                 .WriteTo.File("logs/jarvis-logs.txt", rollingInterval: RollingInterval.Day, retainedFileCountLimit: 7);
         })
         .ConfigureServices((context, services) => {
-            services.AddSingleton(_configuration!);
+            services.AddSemanticKernel(context.Configuration);
+            services.AddOllamaHealthCheck();
 
-            services.AddSemanticKernel(_configuration!);
-            services.AddOllamaHealthCheck(_configuration!);
-
-            services.AddConfigure(_configuration!)
+            services.AddConfigure(context.Configuration)
                     .AddServices()
                     .AddViewModels()
                     .AddViews();
         });
-
-    private void LoadConfiguration() {
-        var builder = new ConfigurationBuilder().SetBasePath(AppContext.BaseDirectory)
-            .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
-            .AddJsonFile($"appsettings.{Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT") ?? "Production"}.json", optional: true)
-            .AddEnvironmentVariables();
-        _configuration = builder.Build();
-    }
 
     private void InitializeSystemTray() {
         if (_trayIcon != null) return;
