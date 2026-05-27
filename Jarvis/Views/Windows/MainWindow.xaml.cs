@@ -47,7 +47,7 @@ public partial class MainWindow : Window {
                 297, 100);
     }
 
-    private Geometry CreateBezierCurve(double x0, double y0, double x1, double y1, double x2, double y2, double x3, double y3) {
+    private PathGeometry CreateBezierCurve(double x0, double y0, double x1, double y1, double x2, double y2, double x3, double y3) {
         var figure = new PathFigure { StartPoint = new Point(x0, y0) };
         figure.Segments.Add(new BezierSegment(
             new Point(x1, y1),
