@@ -8,8 +8,8 @@ using Jarvis.Views.Windows;
 
 namespace Jarvis.Services {
     public class TrayService {
+        private readonly MainWindow? _mainWindow;
         private TaskbarIcon? _trayIcon;
-        private MainWindow? _mainWindow;
         private MenuItem? _autoModeMenuItem;
         private Timer? _waitCommandTimer;
 
@@ -19,7 +19,7 @@ namespace Jarvis.Services {
         
         private const int WAIT_COMMAND_SECONDS = 5;
 
-        public void Initialize(MainWindow mainWindow) {
+        public TrayService(MainWindow mainWindow) {
             _mainWindow = mainWindow;
             InitializeSystemTray();
             SetupWaitCommandTimer();
@@ -60,10 +60,14 @@ namespace Jarvis.Services {
         }
 
         public void HideOverlayAfterCommand() {
-            if (_isAutoMode && _isOverlayVisible) {
+            if (!_isAutoMode || !_isOverlayVisible) return;
+
+            Application.Current.Dispatcher.Invoke(() => {
                 HideToTray();
-                UpdateTrayTooltip("Jarvis - Авто-режим");
-            }
+                _trayIcon?.Dispatcher.Invoke(() => {
+                    UpdateTrayTooltip("Jarvis - Авто-режим");
+                });
+            });
         }
 
         private void InitializeSystemTray() {
@@ -182,9 +186,11 @@ namespace Jarvis.Services {
         }
 
         private void UpdateTrayTooltip(string text) {
-            if (_trayIcon != null) {
+            if (_trayIcon == null) return;
+
+            _trayIcon.Dispatcher.Invoke(() => {
                 _trayIcon.ToolTipText = text;
-            }
+            });
         }
 
         private void UpdateAutoModeMenuItem() {

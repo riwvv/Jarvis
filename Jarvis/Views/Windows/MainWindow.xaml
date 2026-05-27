@@ -41,7 +41,7 @@
             </VisualBrush.Visual>
         </VisualBrush>
 
-        <VisualBrush x:Key="SreenLineBrush"
+        <VisualBrush x:Key="ScreenLineBrush"
                  TileMode="Tile"
                  Viewport="0 0 8 1"
                  ViewportUnits="Absolute"
@@ -101,7 +101,7 @@
             </Rectangle>
 
             <Grid>
-                <Rectangle Fill="{StaticResource SreenLineBrush}" Stroke="{StaticResource LimeGreenBrush}" StrokeThickness="3" Width="200" Height="70">
+                <Rectangle Fill="{StaticResource ScreenLineBrush}" Stroke="{StaticResource LimeGreenBrush}" StrokeThickness="3" Width="200" Height="70">
                     <Rectangle.Effect>
                         <DropShadowEffect Color="{StaticResource LimeYellowShadow}" BlurRadius="35" ShadowDepth="0"/>
                     </Rectangle.Effect>
