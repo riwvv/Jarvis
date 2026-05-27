@@ -10,7 +10,7 @@ namespace Jarvis;
 
 public partial class App : Application {
     private static readonly Mutex _mutex = new(true, "Jarvis_Unique_App_Mutex");
-    private IHost? _host;
+    private readonly IHost? _host;
 
     public App() => _host = CreateHostBuilder().Build();
 
