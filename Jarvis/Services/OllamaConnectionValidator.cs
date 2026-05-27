@@ -10,11 +10,11 @@ public class OllamaConnectionValidator(IOllamaHealthCheck healthCheck) : IOllama
 
         for (int attempt = 1; attempt <= maxRetries; attempt++) {
             if (await healthCheck.IsOllamaRunningAsync()) {
-                Log.Information("Ollama connection established successfully");
+                Log.Information("Соединение с Ollama успешно установлено");
                 return true;
             }
 
-            Log.Warning("Ollama connection failed, attempt {Attempt}/{MaxRetries}", attempt, maxRetries);
+            Log.Warning($"Ollama connection failed, attempt {attempt}/{maxRetries}");
 
             if (attempt < maxRetries) {
                 var result = MessageBox.Show(
