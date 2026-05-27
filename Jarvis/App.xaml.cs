@@ -1,19 +1,17 @@
-﻿using Microsoft.SemanticKernel;
+﻿using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Configuration;
-using Hardcodet.Wpf.TaskbarNotification;
-using Serilog;
-using System.Windows.Controls;
-using System.Windows;
+using Microsoft.SemanticKernel;
 using System.Drawing;
 using System.IO;
-using System.Net.Http;
-using Jarvis.Plugins;
+using System.Windows;
+using System.Windows.Controls;
+using Hardcodet.Wpf.TaskbarNotification;
+using Serilog;
+using Jarvis.Extensions;
 using Jarvis.Services;
 using Jarvis.ViewModels;
 using Jarvis.Views.Windows;
-using Jarvis.Configuration;
 
 namespace Jarvis;
 
@@ -21,6 +19,7 @@ public partial class App : Application {
     private IHost? _host;
     private Kernel? _kernelCore;
     private IConfiguration? _configuration;
+    private SpeechToTextService? _speechToTextService;
 
     private TaskbarIcon? _trayIcon;
     private MainWindow? _mainWindow;
@@ -29,11 +28,26 @@ public partial class App : Application {
 
     public App() {
         LoadConfiguration();
-        InitializedSemanticKernel();
-        InitializedDI();
-
-        _host!.Services.GetRequiredService<SpeechToTextService>().OnWakeWordDetected += () => Dispatcher.Invoke(ShowAsOverlay);
+        _host = CreateHostBuilder().Build();
     }
+
+    private IHostBuilder CreateHostBuilder() => Host.CreateDefaultBuilder()
+        .UseSerilog((context, services, config) => {
+            config.ReadFrom.Configuration(_configuration!)
+                .WriteTo.Debug()
+                .WriteTo.File("logs/jarvis-logs.txt", rollingInterval: RollingInterval.Day, retainedFileCountLimit: 7);
+        })
+        .ConfigureServices((context, services) => {
+            services.AddSingleton(_configuration!);
+
+            services.AddSemanticKernel(_configuration!);
+            services.AddOllamaHealthCheck(_configuration!);
+
+            services.AddConfigure(_configuration!)
+                    .AddServices()
+                    .AddViewModels()
+                    .AddViews();
+        });
 
     private void LoadConfiguration() {
         var builder = new ConfigurationBuilder().SetBasePath(AppContext.BaseDirectory)
@@ -41,81 +55,6 @@ public partial class App : Application {
             .AddJsonFile($"appsettings.{Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT") ?? "Production"}.json", optional: true)
             .AddEnvironmentVariables();
         _configuration = builder.Build();
-    }
-
-    private async void InitializedSemanticKernel() {
-        if (!CheckOllamaConnectSync()) {
-            var result = MessageBox.Show(
-                "Ollama не запущена!\n\n" +
-                "Пожалуйста, запустите Ollama из меню 'Пуск' или скачайте с ollama.ai\n\n" +
-                "Попробовать снова?",
-                "Ошибка подключения",
-                MessageBoxButton.YesNo,
-                MessageBoxImage.Error);
-
-            if (result == MessageBoxResult.Yes) {
-                if (!CheckOllamaConnectSync()) {
-                    Environment.Exit(1);
-                }
-            }
-            else {
-                Environment.Exit(1);
-            }
-        }
-        var aiSettings = _configuration!.GetSection("AISettings").Get<AISettings>();
-
-        var builder = Kernel.CreateBuilder();
-
-        builder.Plugins.AddFromType<ApplicationPlugin>();
-        builder.Plugins.AddFromType<SystemAudioPlugin>();
-        builder.Plugins.AddFromType<BrowserPlugin>();
-        builder.Plugins.AddFromType<FilePlugin>();
-        builder.Plugins.AddFromType<SystemCommandPlugin>();
-        builder.Plugins.AddFromType<PornoPlugin>();
-
-        builder.AddOpenAIChatCompletion(modelId: aiSettings!.ModelId, endpoint: new Uri(aiSettings.Endpoint), apiKey: aiSettings.ApiKey);
-        _kernelCore = builder.Build();
-    }
-
-    private void InitializedDI() {
-        if (_kernelCore == null)
-            throw new InvalidOperationException("KernelCore не инициализирован!");
-
-        _host = Host.CreateDefaultBuilder()
-            .UseSerilog((context, config) => {
-                config.ReadFrom.Configuration(_configuration!)
-                .WriteTo.Debug()
-                .WriteTo.File("logs/jarvis-logs.txt", rollingInterval: RollingInterval.Day);
-            })
-            .ConfigureServices((services) => {
-                services.AddMemoryCache();
-
-                services.Configure<AISettings>(_configuration!.GetSection("AISettings"));
-                services.Configure<SpeechSettings>(_configuration!.GetSection("SpeechSettings"));
-
-                services.AddSingleton(_kernelCore!);
-                services.AddSingleton<SpeechToTextService>();
-                services.AddSingleton<TextToSpeechService>();
-                services.AddSingleton<CommunicationAiService>();
-                services.AddSingleton<VectorMemoryService>();
-
-                services.AddSingleton<MainViewModel>();
-
-                services.AddSingleton<MainWindow>();
-            }).Build();
-    }
-
-    private bool CheckOllamaConnectSync() {
-        using var client = new HttpClient();
-        client.Timeout = TimeSpan.FromSeconds(15);
-        try {
-            var response = client.GetAsync("http://localhost:11434/api/tags").GetAwaiter().GetResult(); ;
-            return response.IsSuccessStatusCode;
-        }
-        catch(Exception ex) {
-            MessageBox.Show(ex.Message);
-            return false;
-        }
     }
 
     private void InitializeSystemTray() {
@@ -182,7 +121,7 @@ public partial class App : Application {
         _mainWindow.ShowInTaskbar = false;
     }
 
-    public void ShowAsOverlay() {
+    private void ShowAsOverlay() {
         if (!_isAutoMode) return;
 
         _mainWindow!.Show();
@@ -200,40 +139,99 @@ public partial class App : Application {
     private void ExitApplication() {
         _autoHideTimer?.Dispose();
         _trayIcon?.Dispose();
+
+        if (_speechToTextService != null) {
+            _speechToTextService.OnWakeWordDetected -= OnVoiceWakeWord;
+        }
+
         Shutdown();
     }
 
-    public void OnVoiceWakeWord() {
-        Dispatcher.Invoke(ShowAsOverlay);
-    }
+    private void OnVoiceWakeWord() => Dispatcher.Invoke(ShowAsOverlay);
 
     protected override async void OnStartup(StartupEventArgs e) {
+        base.OnStartup(e);
+
+        if (_host == null) {
+            Log.Error("При запуске хост равен нулю.");
+            Shutdown();
+            return;
+        }
+
         try {
             await _host!.StartAsync();
+
+            Log.Information("Приложение запускается...");
+
+            _kernelCore = await _host.Services.InitializeKernelWithValidationAsync();
+
+            if (_kernelCore == null) {
+                Shutdown();
+                return;
+            }
+
             _mainWindow = _host.Services.GetRequiredService<MainWindow>();
             _mainWindow.DataContext = _host.Services.GetRequiredService<MainViewModel>();
             _mainWindow.Closing += MainWindow_Closing;
 
-            base.OnStartup(e);
+            try {
+                _speechToTextService = _host.Services.GetRequiredService<SpeechToTextService>();
+                _speechToTextService.OnWakeWordDetected += OnVoiceWakeWord;
+            }
+            catch (Exception ex) {
+                Log.Warning(ex, "Не удалось подписаться на событие пробуждения");
+            }
+
             InitializeSystemTray();
             SetupAutoHideTimer();
+
+            Log.Information("Приложение успешно запущено");
         }
         catch (Exception ex) {
-            Log.Error(ex, "Ошибка при запуске");
-            MessageBox.Show($"Ошибка запуска: {ex.Message}", "Критическая ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
+            Log.Error(ex, "Критическая ошибка при запуске приложения");
+
+            MessageBox.Show(
+                $"Ошибка запуска: {ex.Message}\n\nПодробности в логах: logs/jarvis-logs.txt",
+                "Критическая ошибка",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
+
             Shutdown();
         }
     }
 
     protected override async void OnExit(ExitEventArgs e) {
-        await _host!.StopAsync();
-        _host.Dispose();
+        Log.Information("Приложение завершает работу...");
 
-        foreach (var proc in System.Diagnostics.Process.GetProcessesByName("Jarvis")) {
-            if (proc.Id != Environment.ProcessId)
-                proc.Kill();
+        try {
+            if (_host != null) {
+                await _host.StopAsync(TimeSpan.FromSeconds(5));
+                _host.Dispose();
+            }
+        }
+        catch (Exception ex) {
+            Log.Error(ex, "Ошибка при остановке хоста");
         }
 
+        var currentProcessId = Environment.ProcessId;
+        foreach (var proc in System.Diagnostics.Process.GetProcessesByName("Jarvis")) {
+            if (proc.Id != currentProcessId) {
+                try {
+                    proc.Kill();
+                    Log.Information($"Завершен старый процесс с ID: {proc.Id}");
+                }
+                catch (Exception ex) {
+                    Log.Warning(ex, $"Не удалось завершить процесс {proc.Id}");
+                }
+            }
+        }
+
+        Log.CloseAndFlush();
         base.OnExit(e);
+    }
+
+    protected override void OnSessionEnding(SessionEndingCancelEventArgs e) {
+        ExitApplication();
+        base.OnSessionEnding(e);
     }
 }
