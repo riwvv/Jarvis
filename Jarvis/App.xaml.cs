@@ -25,118 +25,50 @@ public partial class App : Application {
 
     private MainWindow? _mainWindow;
 
-    public App() {
-        LoadConfiguration();
-        InitializedSemanticKernel();
-        InitializedDI();
+    public App() => _host = CreateHostBuilder().Build();
 
-    }
-
-    private void LoadConfiguration() {
-        var builder = new ConfigurationBuilder().SetBasePath(AppContext.BaseDirectory)
-            .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
-            .AddJsonFile($"appsettings.{Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT") ?? "Production"}.json", optional: true)
-            .AddEnvironmentVariables();
-        _configuration = builder.Build();
-    }
-
-    private async void InitializedSemanticKernel() {
-        if (!CheckOllamaConnectSync()) {
-            var result = MessageBox.Show(
-                "Ollama не запущена!\n\n" +
-                "Пожалуйста, запустите Ollama из меню 'Пуск' или скачайте с ollama.ai\n\n" +
-                "Попробовать снова?",
-                "Ошибка подключения",
-                MessageBoxButton.YesNo,
-                MessageBoxImage.Error);
-
-            if (result == MessageBoxResult.Yes) {
-                if (!CheckOllamaConnectSync()) {
-                    Environment.Exit(1);
-                }
-            }
-            else {
-                Environment.Exit(1);
-            }
-        }
-        var aiSettings = _configuration!.GetSection("AISettings").Get<AISettings>();
-
-        var builder = Kernel.CreateBuilder();
-
-        builder.Plugins.AddFromType<ApplicationPlugin>();
-        builder.Plugins.AddFromType<SystemAudioPlugin>();
-        builder.Plugins.AddFromType<BrowserPlugin>();
-        builder.Plugins.AddFromType<FilePlugin>();
-        builder.Plugins.AddFromType<SystemCommandPlugin>();
-        builder.Plugins.AddFromType<PornoPlugin>();
-
-        builder.AddOpenAIChatCompletion(modelId: aiSettings!.ModelId, endpoint: new Uri(aiSettings.Endpoint), apiKey: aiSettings.ApiKey);
-        _kernelCore = builder.Build();
-    }
-
-    private void InitializedDI() {
-        if (_kernelCore == null)
-            throw new InvalidOperationException("KernelCore не инициализирован!");
-
-        _host = Host.CreateDefaultBuilder()
-            .UseSerilog((context, config) => {
-                config.ReadFrom.Configuration(_configuration!)
+    private IHostBuilder CreateHostBuilder() => Host.CreateDefaultBuilder()
+        .UseSerilog((context, services, config) => {
+            config.ReadFrom.Configuration(context.Configuration)
                 .WriteTo.Debug()
-                .WriteTo.File("logs/jarvis-logs.txt", rollingInterval: RollingInterval.Day);
-            })
-            .ConfigureServices((services) => {
-                services.AddMemoryCache();
+                .WriteTo.File("logs/jarvis-logs.txt", rollingInterval: RollingInterval.Day, retainedFileCountLimit: 7);
+        })
+        .ConfigureServices((context, services) => {
+            services.AddSemanticKernel(context.Configuration);
+            services.AddOllamaHealthCheck();
 
-                services.Configure<AISettings>(_configuration!.GetSection("AISettings"));
-                services.Configure<SpeechSettings>(_configuration!.GetSection("SpeechSettings"));
+            services.AddConfigure(context.Configuration)
+                    .AddServices()
+                    .AddViewModels()
+                    .AddViews();
+        });
 
-                services.AddSingleton(_kernelCore!);
-                services.AddSingleton<SpeechToTextService>();
-                services.AddSingleton<TextToSpeechService>();
-                services.AddSingleton<CommunicationAiService>();
-                services.AddSingleton<VectorMemoryService>();
-                services.AddSingleton<TrayService>();
+    private void InitializeSystemTray() {
+        if (_trayIcon != null) return;
+        string iconPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Images", "JarvisImg.ico");
+        _trayIcon = new TaskbarIcon {
+            Icon = new Icon(iconPath),
+            ToolTipText = "Jarvis"
+        };
 
-                services.AddSingleton<MainViewModel>();
+        var contextMenu = new ContextMenu();
 
-                services.AddSingleton<MainWindow>();
-            }).Build();
+        var openItem = new MenuItem { Header = "Открыть" };
+        openItem.Click += (s, e) => ShowNormalWindow();
+
+        var autoModeItem = new MenuItem { Header = "Авто-режим" };
+        autoModeItem.Click += (s, e) => SetAutoMode();
+
+        var exitItem = new MenuItem { Header = "Выход" };
+        exitItem.Click += (s, e) => ExitApplication();
+
+        contextMenu.Items.Add(openItem);
+        contextMenu.Items.Add(autoModeItem);
+        contextMenu.Items.Add(new Separator());
+        contextMenu.Items.Add(exitItem);
+
+        _trayIcon.ContextMenu = contextMenu;
     }
-
-    private bool CheckOllamaConnectSync() {
-        using var client = new HttpClient();
-        client.Timeout = TimeSpan.FromSeconds(15);
-        try {
-            var response = client.GetAsync("http://localhost:11434/api/tags").GetAwaiter().GetResult(); ;
-            return response.IsSuccessStatusCode;
-        }
-        catch(Exception ex) {
-            MessageBox.Show(ex.Message);
-            return false;
-        }
-    }
-
-    private async void CheckOllamaConnect() {
-        using var client = new HttpClient();
-        client.Timeout = TimeSpan.FromSeconds(15);
-        try {
-            var response = await client.GetAsync("http://localhost:11434/api/tags");
-            if (!response.IsSuccessStatusCode)
-                throw new Exception();
-        }
-        catch {
-            MessageBox.Show("Ollama не запущена! Пожалуйста, запустите Ollama и попробуйте снова.", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
-            Environment.Exit(1);
-        }
-    }
-
-    protected override async void OnStartup(StartupEventArgs e) {
-        try {
-            await _host!.StartAsync();
-            _mainWindow = _host.Services.GetRequiredService<MainWindow>();
-            _mainWindow.DataContext = _host.Services.GetRequiredService<MainViewModel>();
-            _trayService = _host.Services.GetRequiredService<TrayService>();
-            var aiService = _host.Services.GetRequiredService<CommunicationAiService>();
 
             _trayService.Initialize(_mainWindow);
 
@@ -166,14 +98,37 @@ public partial class App : Application {
     }
 
     protected override async void OnExit(ExitEventArgs e) {
-        await _host!.StopAsync();
-        _host.Dispose();
+        Log.Information("Приложение завершает работу...");
 
-        foreach (var proc in System.Diagnostics.Process.GetProcessesByName("Jarvis")) {
-            if (proc.Id != Environment.ProcessId)
-                proc.Kill();
+        try {
+            if (_host != null) {
+                await _host.StopAsync(TimeSpan.FromSeconds(5));
+                _host.Dispose();
+            }
+        }
+        catch (Exception ex) {
+            Log.Error(ex, "Ошибка при остановке хоста");
         }
 
+        var currentProcessId = Environment.ProcessId;
+        foreach (var proc in System.Diagnostics.Process.GetProcessesByName("Jarvis")) {
+            if (proc.Id != currentProcessId) {
+                try {
+                    proc.Kill();
+                    Log.Information($"Завершен старый процесс с ID: {proc.Id}");
+                }
+                catch (Exception ex) {
+                    Log.Warning(ex, $"Не удалось завершить процесс {proc.Id}");
+                }
+            }
+        }
+
+        Log.CloseAndFlush();
         base.OnExit(e);
+    }
+
+    protected override void OnSessionEnding(SessionEndingCancelEventArgs e) {
+        ExitApplication();
+        base.OnSessionEnding(e);
     }
 }

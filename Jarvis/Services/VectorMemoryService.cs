@@ -13,7 +13,7 @@ public class VectorMemoryService {
     private readonly LiteDatabase _db;
     private readonly ILiteCollection<MemoryEntry> _collection;
 
-    public VectorMemoryService(IMemoryCache memoryCache, ILogger<VectorMemoryService> logger) {
+    public VectorMemoryService(ILogger<VectorMemoryService> logger) {
         _logger = logger;
         _cache = memoryCache;
         // Храним базу данных в папке пользователя, не в папке с программой
