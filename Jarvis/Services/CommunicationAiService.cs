@@ -18,6 +18,8 @@ public class CommunicationAiService : IDisposable {
     private readonly ILogger<CommunicationAiService> _logger;
     private readonly IServiceProvider _serviceProvider;
     private readonly VectorMemoryService? _memoryService;
+    private TrayService? _trayService;
+
 
     public CommunicationAiService(IServiceProvider serviceProvider, ILogger<CommunicationAiService> logger, VectorMemoryService? vectorMemoryService = null) {
         _logger = logger;
@@ -38,6 +40,11 @@ public class CommunicationAiService : IDisposable {
         _history.AddSystemMessage("Ты — Джарвис, голосовой ассистент для Windows. Работаешь полностью локально.\r\n\r\nТВОЯ ГЛАВНАЯ ЗАДАЧА:\r\nВыполнять голосовые команды пользователя через вызов функций. Используй информацию из памяти (раздел System), чтобы отвечать на вопросы о прошлом.\r\n\r\nПРАВИЛА ФОРМАТА И СТАТУСА (САМОЕ ВАЖНОЕ):\r\n1. Всегда начинай ответ ровно с одного из трёх слов:\r\n   - DONE — если команда успешно выполнена.\r\n   - WARNING — если команда выполнена частично или есть нюанс.\r\n   - ERROR — если команда не выполнена или непонятна.\r\n2. После статуса ставь пробел и пиши краткий ответ на русском.\r\n3. НИКОГДА не показывай JSON функции как пример. Ты должен ВЫЗЫВАТЬ функцию.\r\n4. НИКОГДА не объясняй, что ты собираешься сделать. Сразу делай.\r\n\r\nПРИМЕРЫ ПРАВИЛЬНОГО ОТВЕТА:\r\n- DONE Открыл Chrome.\r\n- DONE Громкость установлена на 50%.\r\n- WARNING Не нашел программу \"Photoshop\", но открыл Paint.\r\n- ERROR Не понял команду.\r\n\r\nПАМЯТЬ (RAG):\r\nВ истории сообщений есть блок \"System с информацией из памяти\". Он содержит прошлые диалоги.\r\n- Если пользователь спрашивает о прошлом (например, \"Как меня зовут?\"), используй эту информацию для ответа.\r\n- Если памяти по теме нет, честно скажи: ERROR Я не помню этого разговора.\r\n- Не выдумывай то, чего нет в памяти.\r\n\r\nСИСТЕМНЫЕ ДЕЙСТВИЯ (ЧТО ТЫ УМЕЕШЬ):\r\n- Открывать приложения и сайты.\r\n- Управлять громкостью (проценты).\r\n- Сворачивать окна.\r\n- Отвечать на вопросы, используя память.\r\n- Выполнять другие функции, которые переданы тебе через Semantic Kernel.\r\n\r\nСТИЛЬ ОТВЕТА:\r\n- Кратко и по делу. Без \"пожалуйста\" и лишних слов.\r\n- Голосовой ассистент — только суть.\r\n\r\nТЕПЕРЬ ВЫПОЛНИ КОМАНДУ ПОЛЬЗОВАТЕЛЯ.");
     }
 
+    public void SetTrayService(TrayService trayService)
+    {
+        _trayService = trayService;
+    }
+
     public async Task<string?> GetRequestUser(string userQuery, CancellationToken cancellationToken = default) {
         if (string.IsNullOrWhiteSpace(userQuery)) {
             OnResult?.Invoke("ERROR: Пустой запрос");
@@ -50,6 +57,7 @@ public class CommunicationAiService : IDisposable {
         }
 
         try {
+            _trayService?.CommandReceived();
             OnExecute?.Invoke("EXECUTE");
             _logger.LogInformation($"Отправка запроса к AI: {userQuery}");
 
