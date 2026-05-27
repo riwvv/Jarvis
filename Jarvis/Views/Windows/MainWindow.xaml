@@ -112,14 +112,219 @@
                 <Path x:Name="Tentacle3" Stroke="{StaticResource HotRedBrush}" StrokeThickness="1" Opacity="0.8"/>
 
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Center">
-                    <Rectangle Fill="{StaticResource HotPinkBrush}" Margin="3 0" Width="8" Height="15" RadiusX="4" RadiusY="4"/>
-                    <Rectangle Fill="{StaticResource OrangeBrush}" Margin="3 0" Width="8" Height="25" RadiusX="4" RadiusY="4"/>
-                    <Rectangle Fill="{StaticResource AquaCyanBrush}" Margin="3 0" Width="8" Height="45" RadiusX="4" RadiusY="4"/>
-                    <Rectangle Fill="{StaticResource HotPinkBrush}" Margin="3 0" Width="8" Height="50" RadiusX="4" RadiusY="4"/>
-                    <Rectangle Fill="{StaticResource LimeYellowBrush}" Margin="3 0" Width="8" Height="35" RadiusX="4" RadiusY="4"/>
-                    <Rectangle Fill="{StaticResource HotPinkBrush}" Margin="3 0" Width="8" Height="20" RadiusX="4" RadiusY="4"/>
-                    <Rectangle Fill="{StaticResource AquaCyanBrush}" Margin="3 0" Width="8" Height="10" RadiusX="4" RadiusY="4"/>
+
+                    <!-- Столбец 1 -->
+                    <Rectangle Fill="{StaticResource HotPinkBrush}" Margin="3 0" Width="8" RadiusX="4" RadiusY="4">
+                        <Rectangle.Style>
+                            <Style TargetType="Rectangle">
+                                <Setter Property="Height" Value="5"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsSpeaking}" Value="True">
+                                        <DataTrigger.EnterActions>
+                                            <BeginStoryboard>
+                                                <Storyboard RepeatBehavior="Forever">
+                                                    <DoubleAnimation Storyboard.TargetProperty="Height"
+                                                     From="5" To="15" Duration="0:0:0.22"
+                                                     AutoReverse="True"/>
+                                                </Storyboard>
+                                            </BeginStoryboard>
+                                        </DataTrigger.EnterActions>
+                                        <DataTrigger.ExitActions>
+                                            <BeginStoryboard>
+                                                <Storyboard>
+                                                    <DoubleAnimation Storyboard.TargetProperty="Height"
+                                                     To="5" Duration="0:0:0.3"/>
+                                                </Storyboard>
+                                            </BeginStoryboard>
+                                        </DataTrigger.ExitActions>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Rectangle.Style>
+                    </Rectangle>
+
+                    <!-- Столбец 2 -->
+                    <Rectangle Fill="{StaticResource OrangeBrush}" Margin="3 0" Width="8" RadiusX="4" RadiusY="4">
+                        <Rectangle.Style>
+                            <Style TargetType="Rectangle">
+                                <Setter Property="Height" Value="8"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsSpeaking}" Value="True">
+                                        <DataTrigger.EnterActions>
+                                            <BeginStoryboard>
+                                                <Storyboard RepeatBehavior="Forever">
+                                                    <DoubleAnimation Storyboard.TargetProperty="Height"
+                                                     From="8" To="25" Duration="0:0:0.2"
+                                                     AutoReverse="True"/>
+                                                </Storyboard>
+                                            </BeginStoryboard>
+                                        </DataTrigger.EnterActions>
+                                        <DataTrigger.ExitActions>
+                                            <BeginStoryboard>
+                                                <Storyboard>
+                                                    <DoubleAnimation Storyboard.TargetProperty="Height"
+                                                     To="8" Duration="0:0:0.3"/>
+                                                </Storyboard>
+                                            </BeginStoryboard>
+                                        </DataTrigger.ExitActions>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Rectangle.Style>
+                    </Rectangle>
+
+                    <!-- Столбец 3  -->
+                    <Rectangle Fill="{StaticResource AquaCyanBrush}" Margin="3 0" Width="8" RadiusX="4" RadiusY="4">
+                        <Rectangle.Style>
+                            <Style TargetType="Rectangle">
+                                <Setter Property="Height" Value="12"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsSpeaking}" Value="True">
+                                        <DataTrigger.EnterActions>
+                                            <BeginStoryboard>
+                                                <Storyboard RepeatBehavior="Forever">
+                                                    <DoubleAnimation Storyboard.TargetProperty="Height"
+                                                     From="12" To="30" Duration="0:0:0.19"
+                                                     AutoReverse="True"/>
+                                                </Storyboard>
+                                            </BeginStoryboard>
+                                        </DataTrigger.EnterActions>
+                                        <DataTrigger.ExitActions>
+                                            <BeginStoryboard>
+                                                <Storyboard>
+                                                    <DoubleAnimation Storyboard.TargetProperty="Height"
+                                                     To="12" Duration="0:0:0.3"/>
+                                                </Storyboard>
+                                            </BeginStoryboard>
+                                        </DataTrigger.ExitActions>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Rectangle.Style>
+                    </Rectangle>
+
+                    <!-- Столбец 4 (центральный, самый высокий) -->
+                    <Rectangle Fill="{StaticResource HotPinkBrush}" Margin="3 0" Width="8" RadiusX="4" RadiusY="4">
+                        <Rectangle.Style>
+                            <Style TargetType="Rectangle">
+                                <Setter Property="Height" Value="15"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsSpeaking}" Value="True">
+                                        <DataTrigger.EnterActions>
+                                            <BeginStoryboard>
+                                                <Storyboard RepeatBehavior="Forever">
+                                                    <DoubleAnimation Storyboard.TargetProperty="Height"
+                                                     From="15" To="35" Duration="0:0:0.22"
+                                                     AutoReverse="True"/>
+                                                </Storyboard>
+                                            </BeginStoryboard>
+                                        </DataTrigger.EnterActions>
+                                        <DataTrigger.ExitActions>
+                                            <BeginStoryboard>
+                                                <Storyboard>
+                                                    <DoubleAnimation Storyboard.TargetProperty="Height"
+                                                     To="15" Duration="0:0:0.3"/>
+                                                </Storyboard>
+                                            </BeginStoryboard>
+                                        </DataTrigger.ExitActions>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Rectangle.Style>
+                    </Rectangle>
+
+                    <!-- Столбец 5 -->
+                    <Rectangle Fill="{StaticResource LimeYellowBrush}" Margin="3 0" Width="8" RadiusX="4" RadiusY="4">
+                        <Rectangle.Style>
+                            <Style TargetType="Rectangle">
+                                <Setter Property="Height" Value="12"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsSpeaking}" Value="True">
+                                        <DataTrigger.EnterActions>
+                                            <BeginStoryboard>
+                                                <Storyboard RepeatBehavior="Forever">
+                                                    <DoubleAnimation Storyboard.TargetProperty="Height"
+                                                     From="12" To="30" Duration="0:0:0.2"
+                                                     AutoReverse="True"/>
+                                                </Storyboard>
+                                            </BeginStoryboard>
+                                        </DataTrigger.EnterActions>
+                                        <DataTrigger.ExitActions>
+                                            <BeginStoryboard>
+                                                <Storyboard>
+                                                    <DoubleAnimation Storyboard.TargetProperty="Height"
+                                                     To="12" Duration="0:0:0.3"/>
+                                                </Storyboard>
+                                            </BeginStoryboard>
+                                        </DataTrigger.ExitActions>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Rectangle.Style>
+                    </Rectangle>
+
+                    <!-- Столбец 6 -->
+                    <Rectangle Fill="{StaticResource HotPinkBrush}" Margin="3 0" Width="8" RadiusX="4" RadiusY="4">
+                        <Rectangle.Style>
+                            <Style TargetType="Rectangle">
+                                <Setter Property="Height" Value="8"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsSpeaking}" Value="True">
+                                        <DataTrigger.EnterActions>
+                                            <BeginStoryboard>
+                                                <Storyboard RepeatBehavior="Forever">
+                                                    <DoubleAnimation Storyboard.TargetProperty="Height"
+                                                     From="8" To="20" Duration="0:0:0.25"
+                                                     AutoReverse="True"/>
+                                                </Storyboard>
+                                            </BeginStoryboard>
+                                        </DataTrigger.EnterActions>
+                                        <DataTrigger.ExitActions>
+                                            <BeginStoryboard>
+                                                <Storyboard>
+                                                    <DoubleAnimation Storyboard.TargetProperty="Height"
+                                                     To="8" Duration="0:0:0.3"/>
+                                                </Storyboard>
+                                            </BeginStoryboard>
+                                        </DataTrigger.ExitActions>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Rectangle.Style>
+                    </Rectangle>
+
+                    <!-- Столбец 7 -->
+                    <Rectangle Fill="{StaticResource AquaCyanBrush}" Margin="3 0" Width="8" RadiusX="4" RadiusY="4">
+                        <Rectangle.Style>
+                            <Style TargetType="Rectangle">
+                                <Setter Property="Height" Value="5"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsSpeaking}" Value="True">
+                                        <DataTrigger.EnterActions>
+                                            <BeginStoryboard>
+                                                <Storyboard RepeatBehavior="Forever">
+                                                    <DoubleAnimation Storyboard.TargetProperty="Height"
+                                                     From="5" To="15" Duration="0:0:0.27"
+                                                     AutoReverse="True"/>
+                                                </Storyboard>
+                                            </BeginStoryboard>
+                                        </DataTrigger.EnterActions>
+                                        <DataTrigger.ExitActions>
+                                            <BeginStoryboard>
+                                                <Storyboard>
+                                                    <DoubleAnimation Storyboard.TargetProperty="Height"
+                                                     To="5" Duration="0:0:0.3"/>
+                                                </Storyboard>
+                                            </BeginStoryboard>
+                                        </DataTrigger.ExitActions>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Rectangle.Style>
+                    </Rectangle>
+
                 </StackPanel>
+
             </Grid>
 
             <Grid>
