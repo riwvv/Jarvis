@@ -21,7 +21,7 @@ public static class SemanticKernelExtensions {
         services.AddTransient<BrowserPlugin>();
         services.AddTransient<FilePlugin>();
         services.AddTransient<SystemCommandPlugin>();
-        services.AddTransient<PornoPlugin>();
+        services.AddTransient<PrankPlugin>();
 
         return services;
     }
@@ -34,7 +34,7 @@ public static class SemanticKernelExtensions {
         builder.Plugins.AddFromType<BrowserPlugin>();
         builder.Plugins.AddFromType<FilePlugin>();
         builder.Plugins.AddFromType<SystemCommandPlugin>();
-        builder.Plugins.AddFromType<PornoPlugin>();
+        builder.Plugins.AddFromType<PrankPlugin>();
 
         builder.AddOpenAIChatCompletion(modelId: aiSettings!.ModelId, endpoint: new Uri(aiSettings.Endpoint), apiKey: aiSettings.ApiKey);
         return builder.Build();

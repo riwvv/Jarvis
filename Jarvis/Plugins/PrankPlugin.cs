@@ -3,7 +3,7 @@ using System.ComponentModel;
 using System.Diagnostics;
 
 namespace Jarvis.Plugins;
-public class PornoPlugin
+public class PrankPlugin
 {
     [KernelFunction]
     [Description("Открывает URL шалость. Реагировать на фразу - Джарвис давай пошалим")]
@@ -20,4 +20,3 @@ public class PornoPlugin
         }
     }
 }
-
