@@ -107,9 +107,9 @@
                     </Rectangle.Effect>
                 </Rectangle>
 
-                <Path Stroke="{StaticResource AquaCyanBrush}" StrokeThickness="1" Opacity="0.8" Data="M 103 100 C 180 130 240 75 297 100"/>
-                <Path Stroke="{StaticResource LimeGreenBrush}" StrokeThickness="1" Opacity="0.8" Data="M 103 100 C 135 75 230 125 297 100"/>
-                <Path Stroke="{StaticResource HotRedBrush}" StrokeThickness="1" Opacity="0.8" Data="M 103 100 L 297 100"/>
+                <Path x:Name="Tentacle1" Stroke="{StaticResource AquaCyanBrush}" StrokeThickness="1" Opacity="0.8" />
+                <Path x:Name="Tentacle2" Stroke="{StaticResource LimeGreenBrush}" StrokeThickness="1" Opacity="0.8"/>
+                <Path x:Name="Tentacle3" Stroke="{StaticResource HotRedBrush}" StrokeThickness="1" Opacity="0.8"/>
 
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Center">
                     <Rectangle Fill="{StaticResource HotPinkBrush}" Margin="3 0" Width="8" Height="15" RadiusX="4" RadiusY="4"/>
