@@ -5,10 +5,8 @@ using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 
-namespace Jarvis.Services
-{
-    public class TrayService
-    {
+namespace Jarvis.Services {
+    public class TrayService {
         private TaskbarIcon? _trayIcon;
         private MainWindow? _mainWindow;
         private System.Timers.Timer? _waitCommandTimer;
@@ -17,29 +15,26 @@ namespace Jarvis.Services
         private bool _isWaitingForCommand = false;
         private const int WAIT_COMMAND_SECONDS = 5;
 
+        private MenuItem? _autoModeMenuItem;
+
         public bool IsAutoMode => _isAutoMode;
 
-        public void Initialize(MainWindow mainWindow)
-        {
+        public void Initialize(MainWindow mainWindow) {
             _mainWindow = mainWindow;
             InitializeSystemTray();
             SetupWaitCommandTimer();
         }
 
-        private void InitializeSystemTray()
-        {
+        private void InitializeSystemTray() {
             if (_trayIcon != null) return;
 
             string iconPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Images", "JarvisImg.ico");
 
-            if (!File.Exists(iconPath))
-            {
+            if (!File.Exists(iconPath)) {
                 _trayIcon = new TaskbarIcon();
             }
-            else
-            {
-                _trayIcon = new TaskbarIcon
-                {
+            else {
+                _trayIcon = new TaskbarIcon {
                     Icon = new Icon(iconPath),
                     ToolTipText = "Jarvis - Голосовой ассистент"
                 };
@@ -50,8 +45,12 @@ namespace Jarvis.Services
             var openItem = new MenuItem { Header = "Открыть" };
             openItem.Click += (s, e) => ShowNormalWindow();
 
-            var autoModeItem = new MenuItem { Header = "Авто-режим" };
-            autoModeItem.Click += (s, e) => ToggleAutoMode();
+            _autoModeMenuItem = new MenuItem {
+                Header = "Авто-режим",
+                IsCheckable = true,
+                IsChecked = _isAutoMode
+            };
+            _autoModeMenuItem.Click += (s, e) => ToggleAutoMode();
 
             var hideItem = new MenuItem { Header = "Скрыть" };
             hideItem.Click += (s, e) => HideToTray();
@@ -62,26 +61,20 @@ namespace Jarvis.Services
             exitItem.Click += (s, e) => ExitApplication();
 
             contextMenu.Items.Add(openItem);
-            contextMenu.Items.Add(autoModeItem);
+            contextMenu.Items.Add(_autoModeMenuItem);
             contextMenu.Items.Add(hideItem);
             contextMenu.Items.Add(separator);
             contextMenu.Items.Add(exitItem);
 
             _trayIcon.ContextMenu = contextMenu;
             _trayIcon.TrayMouseDoubleClick += (s, e) => ShowNormalWindow();
-
-            UpdateAutoModeMenuItem(autoModeItem);
         }
 
-        private void SetupWaitCommandTimer()
-        {
+        private void SetupWaitCommandTimer() {
             _waitCommandTimer = new System.Timers.Timer(WAIT_COMMAND_SECONDS * 1000);
-            _waitCommandTimer.Elapsed += (s, e) =>
-            {
-                Application.Current.Dispatcher.Invoke(() =>
-                {
-                    if (_isAutoMode && _isOverlayVisible && _isWaitingForCommand)
-                    {
+            _waitCommandTimer.Elapsed += (s, e) => {
+                Application.Current.Dispatcher.Invoke(() => {
+                    if (_isAutoMode && _isOverlayVisible && _isWaitingForCommand) {
                         _isWaitingForCommand = false;
                         HideToTray();
                     }
@@ -90,12 +83,10 @@ namespace Jarvis.Services
             _waitCommandTimer.AutoReset = false;
         }
 
-        public void ShowNormalWindow()
-        {
+        public void ShowNormalWindow() {
             if (_mainWindow == null) return;
 
-            Application.Current.Dispatcher.Invoke(() =>
-            {
+            Application.Current.Dispatcher.Invoke(() => {
                 _isAutoMode = false;
                 _isOverlayVisible = false;
                 _isWaitingForCommand = false;
@@ -109,16 +100,14 @@ namespace Jarvis.Services
                 _waitCommandTimer?.Stop();
 
                 UpdateTrayTooltip("Jarvis - Ручной режим");
-                UpdateContextMenu();
+                UpdateAutoModeMenuItem();
             });
         }
 
-        public void HideToTray()
-        {
+        public void HideToTray() {
             if (_mainWindow == null) return;
 
-            Application.Current.Dispatcher.Invoke(() =>
-            {
+            Application.Current.Dispatcher.Invoke(() => {
                 _mainWindow.Hide();
                 _mainWindow.ShowInTaskbar = false;
                 _isOverlayVisible = false;
@@ -128,12 +117,10 @@ namespace Jarvis.Services
             });
         }
 
-        public void ShowAsOverlay()
-        {
+        public void ShowAsOverlay() {
             if (!_isAutoMode || _mainWindow == null) return;
 
-            Application.Current.Dispatcher.Invoke(() =>
-            {
+            Application.Current.Dispatcher.Invoke(() => {
                 _mainWindow.Show();
                 _mainWindow.WindowState = WindowState.Normal;
                 _mainWindow.Topmost = true;
@@ -153,12 +140,10 @@ namespace Jarvis.Services
             });
         }
 
-        public void CommandReceived()
-        {
+        public void CommandReceived() {
             if (!_isAutoMode || !_isOverlayVisible) return;
 
-            Application.Current.Dispatcher.Invoke(() =>
-            {
+            Application.Current.Dispatcher.Invoke(() => {
                 _isWaitingForCommand = false;
                 _waitCommandTimer?.Stop();
 
@@ -166,90 +151,58 @@ namespace Jarvis.Services
             });
         }
 
-        public void HideOverlayAfterCommand()
-        {
-            if (_isAutoMode && _isOverlayVisible)
-            {
+        public void HideOverlayAfterCommand() {
+            if (_isAutoMode && _isOverlayVisible) {
                 HideToTray();
                 UpdateTrayTooltip("Jarvis - Авто-режим");
             }
         }
 
-        public void SetAutoMode()
-        {
+        public void SetAutoMode() {
             if (_isAutoMode) return;
 
             _isAutoMode = true;
             HideToTray();
             UpdateTrayTooltip("Jarvis - Авто-режим");
-            UpdateContextMenu();
+            UpdateAutoModeMenuItem();
         }
 
-        public void SetManualMode()
-        {
+        public void SetManualMode() {
             if (!_isAutoMode) return;
 
             ShowNormalWindow();
         }
 
-        public void ToggleAutoMode()
-        {
-            if (_isAutoMode)
-            {
+        public void ToggleAutoMode() {
+            if (_isAutoMode) {
                 SetManualMode();
             }
-            else
-            {
+            else {
                 SetAutoMode();
             }
         }
 
-        private void UpdateTrayTooltip(string text)
-        {
-            if (_trayIcon != null)
-            {
+        private void UpdateTrayTooltip(string text) {
+            if (_trayIcon != null) {
                 _trayIcon.ToolTipText = text;
             }
         }
 
-        private void UpdateContextMenu()
-        {
-            if (_trayIcon?.ContextMenu == null) return;
+        private void UpdateAutoModeMenuItem() {
+            if (_autoModeMenuItem == null) return;
 
-            foreach (var item in _trayIcon.ContextMenu.Items)
-            {
-                if (item is MenuItem menuItem && menuItem.Header.ToString() == "Авто-режим")
-                {
-                    UpdateAutoModeMenuItem(menuItem);
-                    break;
-                }
-            }
+            _autoModeMenuItem.IsChecked = _isAutoMode;
         }
 
-        private void UpdateAutoModeMenuItem(MenuItem autoModeItem)
-        {
-            if (_isAutoMode)
-            {
-                autoModeItem.Header = "✓ Авто-режим";
-            }
-            else
-            {
-                autoModeItem.Header = "Авто-режим";
-            }
-        }
-
-        public void ExitApplication()
-        {
+        public void ExitApplication() {
             _waitCommandTimer?.Dispose();
             _trayIcon?.Dispose();
             Application.Current.Shutdown();
         }
 
-        public void Dispose()
-        {
+        public void Dispose() {
             _waitCommandTimer?.Dispose();
             _trayIcon?.Dispose();
         }
     }
 }
-
