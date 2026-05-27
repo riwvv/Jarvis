@@ -1,10 +1,11 @@
-﻿using Microsoft.Extensions.Options;
-using System.Windows;
-using System.IO;
-using NAudio.Wave;
-using Vosk;
-using Jarvis.Configuration;
+﻿using Jarvis.Configuration;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using NAudio.Wave;
+using System.IO;
+using System.Windows;
+using System.Windows.Threading;
+using Vosk;
 
 namespace Jarvis.Services {
     public class SpeechToTextService : IDisposable {
@@ -53,9 +54,10 @@ namespace Jarvis.Services {
         private readonly ILogger<SpeechToTextService> _logger;
         private readonly SpeechSettings _settings;
 
-        public SpeechToTextService(IOptions<SpeechSettings> settings, ILogger<SpeechToTextService> logger) {
+        public SpeechToTextService(TrayService trayService, IOptions<SpeechSettings> settings, ILogger<SpeechToTextService> logger) {
             _logger = logger;
             _settings = settings.Value;
+            OnWakeWordDetected += trayService.ShowAsOverlay;
             SAMPLE_RATE = _settings.SttSampleRate;
             InitializeVosk();
             InitializeMicrophone();

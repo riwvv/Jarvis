@@ -1,28 +1,73 @@
 ﻿using Hardcodet.Wpf.TaskbarNotification;
-using Jarvis.Views.Windows;
+using Timer = System.Timers.Timer;
+using System.Windows.Controls;
+using System.Windows;
 using System.Drawing;
 using System.IO;
-using System.Windows;
-using System.Windows.Controls;
+using Jarvis.Views.Windows;
 
 namespace Jarvis.Services {
     public class TrayService {
+        private readonly MainWindow? _mainWindow;
         private TaskbarIcon? _trayIcon;
-        private MainWindow? _mainWindow;
-        private System.Timers.Timer? _waitCommandTimer;
+        private MenuItem? _autoModeMenuItem;
+        private Timer? _waitCommandTimer;
+
         private bool _isAutoMode = true;
         private bool _isOverlayVisible = false;
         private bool _isWaitingForCommand = false;
+        
         private const int WAIT_COMMAND_SECONDS = 5;
 
-        private MenuItem? _autoModeMenuItem;
-
-        public bool IsAutoMode => _isAutoMode;
-
-        public void Initialize(MainWindow mainWindow) {
+        public TrayService(MainWindow mainWindow) {
             _mainWindow = mainWindow;
             InitializeSystemTray();
             SetupWaitCommandTimer();
+        }
+
+        public void ShowAsOverlay() {
+            if (!_isAutoMode || _mainWindow == null) return;
+
+            Application.Current.Dispatcher.Invoke(() => {
+                _mainWindow.Show();
+                _mainWindow.WindowState = WindowState.Normal;
+                _mainWindow.Topmost = true;
+                _mainWindow.ShowInTaskbar = false;
+
+                _mainWindow.Left = SystemParameters.WorkArea.Width - _mainWindow.Width - 20;
+                _mainWindow.Top = SystemParameters.WorkArea.Height - _mainWindow.Height - 20;
+
+                _mainWindow.Activate();
+                _isOverlayVisible = true;
+                _isWaitingForCommand = true;
+
+                _waitCommandTimer?.Stop();
+                _waitCommandTimer?.Start();
+
+                UpdateTrayTooltip("Jarvis - Слушаю команду...");
+            });
+        }
+
+        public void CommandReceived() {
+            if (!_isAutoMode || !_isOverlayVisible) return;
+
+            Application.Current.Dispatcher.Invoke(() => {
+                _isWaitingForCommand = false;
+                _waitCommandTimer?.Stop();
+
+                UpdateTrayTooltip("Jarvis - Выполняю команду...");
+            });
+        }
+
+        public void HideOverlayAfterCommand() {
+            if (!_isAutoMode || !_isOverlayVisible) return;
+
+            Application.Current.Dispatcher.Invoke(() => {
+                HideToTray();
+                _trayIcon?.Dispatcher.Invoke(() => {
+                    UpdateTrayTooltip("Jarvis - Авто-режим");
+                });
+            });
         }
 
         private void InitializeSystemTray() {
@@ -71,7 +116,7 @@ namespace Jarvis.Services {
         }
 
         private void SetupWaitCommandTimer() {
-            _waitCommandTimer = new System.Timers.Timer(WAIT_COMMAND_SECONDS * 1000);
+            _waitCommandTimer = new Timer(WAIT_COMMAND_SECONDS * 1000);
             _waitCommandTimer.Elapsed += (s, e) => {
                 Application.Current.Dispatcher.Invoke(() => {
                     if (_isAutoMode && _isOverlayVisible && _isWaitingForCommand) {
@@ -83,7 +128,7 @@ namespace Jarvis.Services {
             _waitCommandTimer.AutoReset = false;
         }
 
-        public void ShowNormalWindow() {
+        private void ShowNormalWindow() {
             if (_mainWindow == null) return;
 
             Application.Current.Dispatcher.Invoke(() => {
@@ -104,7 +149,7 @@ namespace Jarvis.Services {
             });
         }
 
-        public void HideToTray() {
+        private void HideToTray() {
             if (_mainWindow == null) return;
 
             Application.Current.Dispatcher.Invoke(() => {
@@ -116,49 +161,7 @@ namespace Jarvis.Services {
                 _waitCommandTimer?.Stop();
             });
         }
-
-        public void ShowAsOverlay() {
-            if (!_isAutoMode || _mainWindow == null) return;
-
-            Application.Current.Dispatcher.Invoke(() => {
-                _mainWindow.Show();
-                _mainWindow.WindowState = WindowState.Normal;
-                _mainWindow.Topmost = true;
-                _mainWindow.ShowInTaskbar = false;
-
-                _mainWindow.Left = SystemParameters.WorkArea.Width - _mainWindow.Width - 20;
-                _mainWindow.Top = SystemParameters.WorkArea.Height - _mainWindow.Height - 20;
-
-                _mainWindow.Activate();
-                _isOverlayVisible = true;
-                _isWaitingForCommand = true;
-
-                _waitCommandTimer?.Stop();
-                _waitCommandTimer?.Start();
-
-                UpdateTrayTooltip("Jarvis - Слушаю команду...");
-            });
-        }
-
-        public void CommandReceived() {
-            if (!_isAutoMode || !_isOverlayVisible) return;
-
-            Application.Current.Dispatcher.Invoke(() => {
-                _isWaitingForCommand = false;
-                _waitCommandTimer?.Stop();
-
-                UpdateTrayTooltip("Jarvis - Выполняю команду...");
-            });
-        }
-
-        public void HideOverlayAfterCommand() {
-            if (_isAutoMode && _isOverlayVisible) {
-                HideToTray();
-                UpdateTrayTooltip("Jarvis - Авто-режим");
-            }
-        }
-
-        public void SetAutoMode() {
+        private void SetAutoMode() {
             if (_isAutoMode) return;
 
             _isAutoMode = true;
@@ -167,13 +170,13 @@ namespace Jarvis.Services {
             UpdateAutoModeMenuItem();
         }
 
-        public void SetManualMode() {
+        private void SetManualMode() {
             if (!_isAutoMode) return;
 
             ShowNormalWindow();
         }
 
-        public void ToggleAutoMode() {
+        private void ToggleAutoMode() {
             if (_isAutoMode) {
                 SetManualMode();
             }
@@ -183,9 +186,11 @@ namespace Jarvis.Services {
         }
 
         private void UpdateTrayTooltip(string text) {
-            if (_trayIcon != null) {
+            if (_trayIcon == null) return;
+
+            _trayIcon.Dispatcher.Invoke(() => {
                 _trayIcon.ToolTipText = text;
-            }
+            });
         }
 
         private void UpdateAutoModeMenuItem() {
@@ -194,7 +199,7 @@ namespace Jarvis.Services {
             _autoModeMenuItem.IsChecked = _isAutoMode;
         }
 
-        public void ExitApplication() {
+        private void ExitApplication() {
             _waitCommandTimer?.Dispose();
             _trayIcon?.Dispose();
             Application.Current.Shutdown();

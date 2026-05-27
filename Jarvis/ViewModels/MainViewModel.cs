@@ -5,7 +5,7 @@ using Microsoft.Extensions.Logging;
 namespace Jarvis.ViewModels {
     public partial class MainViewModel : ObservableObject, IDisposable {
         [ObservableProperty] private string _state = "SLEEP";
-        [ObservableProperty] private bool _isSpeaking = false; // Для отображения в UI, потом пригодится
+        [ObservableProperty] private bool _isSpeaking = false; // используется для 
         
         private readonly ILogger<MainViewModel> _logger;
         private readonly SpeechToTextService _speechToTextService;
