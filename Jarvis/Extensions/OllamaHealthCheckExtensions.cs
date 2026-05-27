@@ -1,12 +1,11 @@
-﻿using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
+﻿using Microsoft.Extensions.DependencyInjection;
 using Jarvis.Interfaces;
 using Jarvis.Services;
 
 namespace Jarvis.Extensions;
 
 public static class OllamaHealthCheckExtensions {
-    public static IServiceCollection AddOllamaHealthCheck(this IServiceCollection services, IConfiguration configuration) {
+    public static IServiceCollection AddOllamaHealthCheck(this IServiceCollection services) {
         services.AddSingleton<IOllamaHealthCheck, OllamaHealthCheck>();
         services.AddSingleton<IOllamaConnectionValidator, OllamaConnectionValidator>();
 
