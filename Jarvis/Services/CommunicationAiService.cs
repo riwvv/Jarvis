@@ -19,6 +19,7 @@ public class CommunicationAiService : IDisposable {
     private readonly IServiceProvider _serviceProvider;
     private readonly VectorMemoryService? _memoryService;
 
+
     public CommunicationAiService(IServiceProvider serviceProvider, ILogger<CommunicationAiService> logger, VectorMemoryService? vectorMemoryService = null) {
         _logger = logger;
         _serviceProvider = serviceProvider;

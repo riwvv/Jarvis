@@ -226,6 +226,8 @@ public partial class App : Application {
             _mainWindow.DataContext = _host.Services.GetRequiredService<MainViewModel>();
             _trayService = _host.Services.GetRequiredService<TrayService>();
 
+            _trayService.Initialize(_mainWindow);
+
             var speechService = _host.Services.GetRequiredService<SpeechToTextService>();
             speechService.OnWakeWordDetected += () =>
             {

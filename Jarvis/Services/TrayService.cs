@@ -19,31 +19,31 @@ namespace Jarvis.Services
         private System.Timers.Timer? _autoHideTimer;
         private bool _isAutoMode = true;
         private bool _isOverlayVisible = false;
-        private const int OVERLAY_AUTO_HIDE_SECONDS = 3;
+        private const int OVERLAY_AUTO_HIDE_SECONDS = 5;
 
         public bool IsAutoMode => _isAutoMode;
 
-        private readonly IServiceProvider _serviceProvider;
+        //private readonly IServiceProvider _serviceProvider;
 
-        public TrayService(/*IServiceProvider serviceProvider,*/ MainWindow mainWindow)
-        {
-            //_serviceProvider = serviceProvider;
-
-            //_serviceProvider.GetRequiredService<SpeechToTextService>().OnWakeWordDetected += () => Dispatcher.CurrentDispatcher.Invoke(ShowAsOverlay);
-
-            _mainWindow = mainWindow;
-            _mainWindow.Closing += (s, e) => HideToTray();
-
-            InitializeSystemTray();
-            SetupAutoHideTimer();
-        }
-
-        //public void Initialize(MainWindow mainWindow)
+        //public TrayService(IServiceProvider serviceProvider, MainWindow mainWindow)
         //{
+        //    _serviceProvider = serviceProvider;
+
+        //    _serviceProvider.GetRequiredService<SpeechToTextService>().OnWakeWordDetected += () => Dispatcher.CurrentDispatcher.Invoke(ShowAsOverlay);
+
         //    _mainWindow = mainWindow;
+        //    _mainWindow.Closing += (s, e) => HideToTray();
+
         //    InitializeSystemTray();
         //    SetupAutoHideTimer();
         //}
+
+        public void Initialize(MainWindow mainWindow)
+        {
+            _mainWindow = mainWindow;
+            InitializeSystemTray();
+            SetupAutoHideTimer();
+        }
 
         private void InitializeSystemTray()
         {
@@ -90,6 +90,15 @@ namespace Jarvis.Services
             _trayIcon.TrayMouseDoubleClick += (s, e) => ShowNormalWindow();
 
             UpdateAutoModeMenuItem(autoModeItem);
+        }
+
+        public void HideOverlayAfterCommand()
+        {
+            if (_isAutoMode && _isOverlayVisible)
+            {
+                HideToTray();
+                UpdateTrayTooltip("Jarvis - Авто-режим");
+            }
         }
 
         private void SetupAutoHideTimer()
@@ -159,6 +168,9 @@ namespace Jarvis.Services
 
             UpdateTrayTooltip("Jarvis - Авто-режим (активен)");
         }
+
+
+
 
         public void SetAutoMode()
         {
