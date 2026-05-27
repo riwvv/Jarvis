@@ -14,6 +14,7 @@ using Jarvis.Services;
 using Jarvis.ViewModels;
 using Jarvis.Views.Windows;
 using Jarvis.Configuration;
+using Jarvis.Extensions;
 
 namespace Jarvis;
 
@@ -22,6 +23,7 @@ public partial class App : Application {
     private Kernel? _kernelCore;
     private IConfiguration? _configuration;
     private TrayService? _trayService;
+    private SpeechToTextService _speechToTextService;
 
     private MainWindow? _mainWindow;
 
@@ -43,34 +45,36 @@ public partial class App : Application {
                     .AddViews();
         });
 
-    private void InitializeSystemTray() {
-        if (_trayIcon != null) return;
-        string iconPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Images", "JarvisImg.ico");
-        _trayIcon = new TaskbarIcon {
-            Icon = new Icon(iconPath),
-            ToolTipText = "Jarvis"
-        };
+    protected override async void OnStartup(StartupEventArgs e)
+    {
+        base.OnStartup(e);
 
-        var contextMenu = new ContextMenu();
+        if (_host == null)
+        {
+            Log.Error("При запуске хост равен нулю.");
+            Shutdown();
+            return;
+        }
 
-        var openItem = new MenuItem { Header = "Открыть" };
-        openItem.Click += (s, e) => ShowNormalWindow();
+        try
+        {
+            await _host!.StartAsync();
 
-        var autoModeItem = new MenuItem { Header = "Авто-режим" };
-        autoModeItem.Click += (s, e) => SetAutoMode();
+            Log.Information("Приложение запускается...");
 
-        var exitItem = new MenuItem { Header = "Выход" };
-        exitItem.Click += (s, e) => ExitApplication();
+            _kernelCore = await _host.Services.InitializeKernelWithValidationAsync();
 
-        contextMenu.Items.Add(openItem);
-        contextMenu.Items.Add(autoModeItem);
-        contextMenu.Items.Add(new Separator());
-        contextMenu.Items.Add(exitItem);
+            if (_kernelCore == null)
+            {
+                Shutdown();
+                return;
+            }
 
-        _trayIcon.ContextMenu = contextMenu;
-    }
-
+            _mainWindow = _host.Services.GetRequiredService<MainWindow>();
+            _mainWindow.DataContext = _host.Services.GetRequiredService<MainViewModel>();
+            _trayService = _host.Services.GetRequiredService<TrayService>();
             _trayService.Initialize(_mainWindow);
+            var aiService = _host.Services.GetRequiredService<CommunicationAiService>();
 
             aiService.SetTrayService(_trayService);
 
@@ -88,14 +92,22 @@ public partial class App : Application {
                 Dispatcher.Invoke(() => _trayService?.ShowAsOverlay());
             };
 
-            base.OnStartup(e);
+            Log.Information("Приложение успешно запущено");
         }
-        catch (Exception ex) {
-            Log.Error(ex, "Ошибка при запуске");
-            MessageBox.Show($"Ошибка запуска: {ex.Message}", "Критическая ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Критическая ошибка при запуске приложения");
+
+            MessageBox.Show(
+                $"Ошибка запуска: {ex.Message}\n\nПодробности в логах: logs/jarvis-logs.txt",
+                "Критическая ошибка",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
+
             Shutdown();
         }
     }
+
 
     protected override async void OnExit(ExitEventArgs e) {
         Log.Information("Приложение завершает работу...");
@@ -128,7 +140,6 @@ public partial class App : Application {
     }
 
     protected override void OnSessionEnding(SessionEndingCancelEventArgs e) {
-        ExitApplication();
         base.OnSessionEnding(e);
     }
 }

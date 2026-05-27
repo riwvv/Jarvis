@@ -20,6 +20,7 @@ public static class AppExtensions {
         services.AddSingleton<TextToSpeechService>();
         services.AddSingleton<VectorMemoryService>();
         services.AddSingleton<CommunicationAiService>();
+        services.AddSingleton<TrayService>();
 
         return services;
     }

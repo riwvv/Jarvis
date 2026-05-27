@@ -15,7 +15,6 @@ public class VectorMemoryService {
 
     public VectorMemoryService(ILogger<VectorMemoryService> logger) {
         _logger = logger;
-        _cache = memoryCache;
         // Храним базу данных в папке пользователя, не в папке с программой
         var appData = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Jarvis");
         Directory.CreateDirectory(appData);
