@@ -1,9 +1,9 @@
-﻿using Jarvis.Configuration;
+﻿using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Jarvis.Configuration;
 using Jarvis.Services;
 using Jarvis.ViewModels;
 using Jarvis.Views.Windows;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
 
 namespace Jarvis.Extensions;
 

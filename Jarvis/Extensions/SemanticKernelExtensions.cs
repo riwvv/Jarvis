@@ -1,8 +1,8 @@
-﻿using Jarvis.Configuration;
-using Jarvis.Plugins;
-using Microsoft.Extensions.Configuration;
+﻿using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.SemanticKernel;
+using Jarvis.Configuration;
+using Jarvis.Plugins;
 
 namespace Jarvis.Extensions;
 

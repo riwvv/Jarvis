@@ -1,7 +1,7 @@
-﻿using Jarvis.Configuration;
-using Jarvis.Interfaces;
-using Microsoft.Extensions.Configuration;
+﻿using Microsoft.Extensions.Configuration;
 using System.Net.Http;
+using Jarvis.Configuration;
+using Jarvis.Interfaces;
 
 namespace Jarvis.Services;
 

@@ -1,17 +1,17 @@
-﻿using Hardcodet.Wpf.TaskbarNotification;
-using Jarvis.Extensions;
-using Jarvis.Services;
-using Jarvis.ViewModels;
-using Jarvis.Views.Windows;
-using Microsoft.Extensions.Configuration;
+﻿using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.SemanticKernel;
-using Serilog;
 using System.Drawing;
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
+using Hardcodet.Wpf.TaskbarNotification;
+using Serilog;
+using Jarvis.Extensions;
+using Jarvis.Services;
+using Jarvis.ViewModels;
+using Jarvis.Views.Windows;
 
 namespace Jarvis;
 

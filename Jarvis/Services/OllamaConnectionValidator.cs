@@ -1,6 +1,6 @@
-﻿using Jarvis.Interfaces;
+﻿using System.Windows;
 using Serilog;
-using System.Windows;
+using Jarvis.Interfaces;
 
 namespace Jarvis.Services;
 
