@@ -2,20 +2,17 @@
 using System.Text;
 using LiteDB;
 using Jarvis.VectorMemory;
-using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 
 namespace Jarvis.Services;
 
 public class VectorMemoryService {
     private readonly ILogger<VectorMemoryService> _logger;
-    private readonly IMemoryCache _cache; // добавить кэш
     private readonly LiteDatabase _db;
     private readonly ILiteCollection<MemoryEntry> _collection;
 
-    public VectorMemoryService(IMemoryCache memoryCache, ILogger<VectorMemoryService> logger) {
+    public VectorMemoryService(ILogger<VectorMemoryService> logger) {
         _logger = logger;
-        _cache = memoryCache;
         // Храним базу данных в папке пользователя, не в папке с программой
         var appData = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Jarvis");
         Directory.CreateDirectory(appData);

@@ -1,5 +1,4 @@
 ﻿using CommunityToolkit.Mvvm.ComponentModel;
-using System.Diagnostics;
 using Jarvis.Services;
 using Microsoft.Extensions.Logging;
 
@@ -7,6 +6,7 @@ namespace Jarvis.ViewModels {
     public partial class MainViewModel : ObservableObject, IDisposable {
         [ObservableProperty] private string _state = "SLEEP";
         [ObservableProperty] private bool _isSpeaking = false; // Для отображения в UI, потом пригодится
+        
         private readonly ILogger<MainViewModel> _logger;
         private readonly SpeechToTextService _speechToTextService;
         private readonly CommunicationAiService _communicationAiService;
