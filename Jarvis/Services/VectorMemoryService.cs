@@ -2,14 +2,12 @@
 using System.Text;
 using LiteDB;
 using Jarvis.VectorMemory;
-using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 
 namespace Jarvis.Services;
 
 public class VectorMemoryService {
     private readonly ILogger<VectorMemoryService> _logger;
-    private readonly IMemoryCache _cache; // добавить кэш
     private readonly LiteDatabase _db;
     private readonly ILiteCollection<MemoryEntry> _collection;
 

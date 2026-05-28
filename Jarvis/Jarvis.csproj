@@ -11,6 +11,7 @@
   <ItemGroup>
     <None Remove="Images\JarvisImg.ico" />
     <None Remove="appsettings.json" />
+    <None Remove="Resources\RHVoice-voice-Russian-Evgeniy-Rus-v4.0.2017.22-setup.exe" />
   </ItemGroup>
 
   <ItemGroup>
@@ -26,6 +27,12 @@
 		<Content Include="Models\**\*.*">
 			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
 		</Content>
+	</ItemGroup>
+
+	<ItemGroup>
+	  <Content Include="Resources\RHVoice-voice-Russian-Evgeniy-Rus-v4.0.2017.22-setup.exe">
+	    <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+	  </Content>
 	</ItemGroup>
 
   <ItemGroup>
