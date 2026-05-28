@@ -1,10 +1,11 @@
-﻿using Microsoft.SemanticKernel;
+﻿using Jarvis.Models;
+using Microsoft.SemanticKernel;
 using Microsoft.Win32;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
 using System.Text;
-using Jarvis.Models;
+using System.Text.RegularExpressions;
 
 namespace Jarvis.Plugins;
 
@@ -12,6 +13,9 @@ public class ApplicationPlugin
 {
     private List<InstalledApplication>? _installedApps;
     private bool _isLoaded;
+
+    private Dictionary<string, string>? _steamGames;
+    private bool _steamScanned;
 
     private readonly string[] _registryPaths =
     [
@@ -222,5 +226,140 @@ public class ApplicationPlugin
         }
 
         return sb.ToString();
+    }
+
+    [KernelFunction]
+    [Description("Запускает игру из Steam по точному названию")]
+    public async Task<string> LaunchSteamGame(
+    [Description("Точное название игры на английском, как в Steam: Satisfactory, Counter-Strike 2, Dota 2, Cyberpunk 2077")] string gameName)
+    {
+        if (!_steamScanned)
+            await ScanSteamGamesAsync();
+
+        if (_steamGames == null || _steamGames.Count == 0)
+            return "Игры в Steam не найдены. Убедитесь, что Steam установлен и есть хотя бы одна игра.";
+
+        var exactMatch = _steamGames.Keys.FirstOrDefault(g =>
+            string.Equals(g, gameName?.Trim(), StringComparison.OrdinalIgnoreCase));
+
+        if (exactMatch == null)
+        {
+            var suggestions = _steamGames.Keys.Take(5);
+            return $"Игра \"{gameName}\" не найдена. Установленные игры: {string.Join(", ", suggestions)}...";
+        }
+
+        try
+        {
+            Process.Start(new ProcessStartInfo($"steam://rungameid/{_steamGames[exactMatch]}")
+            {
+                UseShellExecute = true
+            });
+            return $"Запускаю: {exactMatch}";
+        }
+        catch (Exception ex)
+        {
+            return $"Ошибка запуска: {ex.Message}. Убедитесь, что Steam запущен.";
+        }
+    }
+
+    [KernelFunction]
+    [Description("Возвращает список установленных в Steam игр")]
+    public async Task<string> ListSteamGames()
+    {
+        if (!_steamScanned)
+            await ScanSteamGamesAsync();
+
+        if (_steamGames == null || _steamGames.Count == 0)
+            return "Игры не найдены";
+
+        return string.Join(", ", _steamGames.Keys.OrderBy(x => x));
+    }
+
+    private async Task ScanSteamGamesAsync()
+    {
+        _steamGames = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+        await Task.Run(() =>
+        {
+            try
+            {
+                var steamPath = GetSteamPath();
+                if (string.IsNullOrEmpty(steamPath)) return;
+
+                var steamAppsPaths = new List<string> { Path.Combine(steamPath, "steamapps") };
+                steamAppsPaths.AddRange(GetExtraLibraries(steamPath));
+
+                foreach (var appsPath in steamAppsPaths.Where(Directory.Exists))
+                {
+                    foreach (var manifest in Directory.GetFiles(appsPath, "appmanifest_*.acf"))
+                    {
+                        ParseManifest(manifest);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Steam scan error: {ex.Message}");
+            }
+        });
+
+        _steamScanned = true;
+    }
+
+    private string? GetSteamPath()
+    {
+        return Registry.GetValue(@"HKEY_CURRENT_USER\Software\Valve\Steam", "SteamPath", null) as string
+            ?? Registry.GetValue(@"HKEY_LOCAL_MACHINE\SOFTWARE\WOW6432Node\Valve\Steam", "InstallPath", null) as string;
+    }
+
+    private List<string> GetExtraLibraries(string steamPath)
+    {
+        var libraries = new List<string>();
+        var configPath = Path.Combine(steamPath, "steamapps", "libraryfolders.vdf");
+
+        if (!File.Exists(configPath)) return libraries;
+
+        try
+        {
+            var content = File.ReadAllText(configPath);
+            var matches = Regex.Matches(content, @"""path""\s+""([^""]+)""");
+
+            foreach (Match match in matches)
+            {
+                var libPath = match.Groups[1].Value.Replace(@"\\", @"\");
+                var appsPath = Path.Combine(libPath, "steamapps");
+
+                if (Directory.Exists(appsPath))
+                    libraries.Add(appsPath);
+            }
+        }
+        catch(Exception ex) 
+        {
+            Debug.WriteLine($"Ошибка чтения libraryfolders.vdf: {ex.Message}");
+        }
+
+        return libraries;
+    }
+
+    private void ParseManifest(string path)
+    {
+        try
+        {
+            var content = File.ReadAllText(path);
+
+            var appId = Regex.Match(content, @"""appid""\s+""(\d+)""");
+            var name = Regex.Match(content, @"""name""\s+""([^""]+)""");
+
+            if (appId.Success && name.Success)
+            {
+                var gameName = name.Groups[1].Value.Trim();
+                if (!string.IsNullOrEmpty(gameName) && !_steamGames!.ContainsKey(gameName))
+                    _steamGames!.Add(gameName, appId.Groups[1].Value);
+            }
+        }
+        catch(Exception ex)
+        {
+            Debug.WriteLine($"Ошибка парсинга манифеста {Path.GetFileName(path)}: {ex.Message}");
+        }
     }
 }
