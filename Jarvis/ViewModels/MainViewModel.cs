@@ -1,11 +1,12 @@
 ﻿using CommunityToolkit.Mvvm.ComponentModel;
 using Jarvis.Services;
 using Microsoft.Extensions.Logging;
+using System.Windows;
 
 namespace Jarvis.ViewModels {
     public partial class MainViewModel : ObservableObject, IDisposable {
         [ObservableProperty] private string _state = "SLEEP";
-        [ObservableProperty] private bool _isSpeaking = false; // используется для 
+        [ObservableProperty] private bool _isSpeaking = false; // используется для речевого синтезатора
         
         private readonly ILogger<MainViewModel> _logger;
         private readonly SpeechToTextService _speechToTextService;
@@ -14,6 +15,7 @@ namespace Jarvis.ViewModels {
 
         public MainViewModel(SpeechToTextService speechToTextService, CommunicationAiService communicationAiService, TextToSpeechService textToSpeechService, ILogger<MainViewModel> logger) {
             _logger = logger;
+
             _speechToTextService = speechToTextService;
             _communicationAiService = communicationAiService;
             _textToSpeechService = textToSpeechService;
@@ -45,6 +47,18 @@ namespace Jarvis.ViewModels {
             _communicationAiService.OnResult += (text) => State = text; // выполнил
 
             _speechToTextService.Start();
+        }
+
+        private void OnRestartRequired(object? sender, EventArgs e) {
+            Application.Current.Dispatcher.Invoke(() =>
+            {
+                var result = MessageBox.Show(
+                    "Для улучшения качества голоса был установлен дополнительный компонент.\n\n" +
+                    "Пожалуйста, перезапустите приложение, чтобы изменения вступили в силу.",
+                    "Требуется перезапуск",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information);
+            });
         }
 
         public void Dispose() {

@@ -21,6 +21,7 @@ public static class AppExtensions {
         services.AddSingleton<VectorMemoryService>();
         services.AddSingleton<CommunicationAiService>();
         services.AddSingleton<TrayService>();
+        services.AddHostedService<VoiceInstallerService>();
 
         return services;
     }

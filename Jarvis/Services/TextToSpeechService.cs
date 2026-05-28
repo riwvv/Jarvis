@@ -5,7 +5,7 @@ using Jarvis.Configuration;
 
 namespace Jarvis.Services {
     public class TextToSpeechService : IDisposable {
-        private readonly SpeechSynthesizer _synthesizer;
+        private SpeechSynthesizer? _synthesizer;
         private bool _isSpeaking = false;
         private readonly SemaphoreSlim _speakSemaphore = new(1, 1);
         private readonly ILogger<TextToSpeechService> _logger;
@@ -18,6 +18,13 @@ namespace Jarvis.Services {
         public TextToSpeechService(IOptions<SpeechSettings> settings, ILogger<TextToSpeechService> logger) {
             _logger = logger;
             _speechSettings = settings.Value;
+
+            InitializeSynthesizer();
+            ConfigureRussianVoice();
+        }
+
+        private void InitializeSynthesizer() {
+            _synthesizer?.Dispose();
             _synthesizer = new SpeechSynthesizer();
             _synthesizer.SetOutputToDefaultAudioDevice();
             _synthesizer.Rate = _speechSettings.TtsRate;
@@ -34,53 +41,49 @@ namespace Jarvis.Services {
                 OnFinishedSpeaking?.Invoke();
                 _logger.LogInformation("TTS: Воспроизведение завершено");
             };
-
-            ConfigureRussianVoice();
-            _logger.LogInformation("TextToSpeechService инициализирован");
         }
 
         private void ConfigureRussianVoice() {
+            if (_synthesizer == null) return;
+
             try {
                 var russianVoices = _synthesizer.GetInstalledVoices()
                     .Where(v => v.VoiceInfo.Culture.Name.StartsWith("ru"))
                     .ToList();
 
-                if (russianVoices.Any()) {
-                    _synthesizer.SelectVoice(russianVoices.First().VoiceInfo.Name);
-                    _logger.LogInformation($"TTS: Выбран голос '{russianVoices.First().VoiceInfo.Name}'");
+                var targetVoice = russianVoices.FirstOrDefault(v => v.VoiceInfo.Name == "Evgeniy-Rus");
+
+                if (targetVoice != null) {
+                    _synthesizer.SelectVoice(targetVoice.VoiceInfo.Name);
+                    _logger.LogInformation($"TTS: Выбран голос 'Evgeniy-Rus'");
                 }
-                else {
-                    _logger.LogInformation("TTS: Предупреждение — Русский голос не найден");
+                else if (russianVoices.Any()) {
+                    var fallback = russianVoices.First();
+                    _synthesizer.SelectVoice(fallback.VoiceInfo.Name);
+                    _logger.LogWarning($"TTS: Evgeniy-Rus не найден. Выбран '{fallback.VoiceInfo.Name}'");
                 }
             }
             catch (Exception ex) {
-                _logger.LogInformation($"TTS: Ошибка при настройке голоса: {ex.Message}");
+                _logger.LogError(ex, "TTS: Ошибка настройки голоса");
             }
         }
 
         public async Task SpeakAsync(string text, CancellationToken cancellationToken = default) {
-            if (string.IsNullOrWhiteSpace(text)) {
-                _logger.LogInformation("TTS: Пустой текст, озвучивание отменено");
-                return;
-            }
+            if (_synthesizer == null) return;
+            if (string.IsNullOrWhiteSpace(text)) return;
 
             string cleanText = CleanTextForSpeech(text);
-
             await _speakSemaphore.WaitAsync(cancellationToken);
 
             try {
-                if (_isSpeaking)
-                    _synthesizer.SpeakAsyncCancelAll();
-
-                _logger.LogInformation($"TTS: Озвучивание: \"{cleanText}\"");
+                if (_isSpeaking) _synthesizer.SpeakAsyncCancelAll();
                 await Task.Run(() => _synthesizer.SpeakAsync(cleanText), cancellationToken);
             }
             catch (OperationCanceledException) {
-                _logger.LogInformation("TTS: Озвучивание отменено");
                 _synthesizer.SpeakAsyncCancelAll();
             }
             catch (Exception ex) {
-                _logger.LogInformation($"TTS: Ошибка при озвучивании: {ex.Message}");
+                _logger.LogError(ex, "TTS: Ошибка озвучивания");
                 OnError?.Invoke(ex.Message);
             }
             finally {
@@ -91,12 +94,11 @@ namespace Jarvis.Services {
         public void StopSpeaking() {
             try {
                 if (_isSpeaking) {
-                    _synthesizer.SpeakAsyncCancelAll();
-                    _logger.LogInformation("TTS: Воспроизведение остановлено");
+                    _synthesizer?.SpeakAsyncCancelAll();
                 }
             }
             catch (Exception ex) {
-                _logger.LogInformation($"TTS: Ошибка при остановке: {ex.Message}");
+                _logger.LogError(ex, "TTS: Ошибка остановки");
             }
         }
 
@@ -122,7 +124,6 @@ namespace Jarvis.Services {
             StopSpeaking();
             _speakSemaphore?.Dispose();
             _synthesizer?.Dispose();
-            _logger.LogInformation("TextToSpeechService освобождён");
         }
     }
 }
