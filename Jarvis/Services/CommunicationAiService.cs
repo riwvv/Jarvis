@@ -1,4 +1,5 @@
-﻿using Microsoft.Extensions.Logging;
+﻿using Jarvis.Interfaces;
+using Microsoft.Extensions.Logging;
 using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.ChatCompletion;
 using Microsoft.SemanticKernel.Connectors.OpenAI;
@@ -12,30 +13,59 @@ public class CommunicationAiService : IDisposable {
     private readonly ILogger<CommunicationAiService> _logger;
     private readonly IChatCompletionService _chat;
     private readonly Kernel _kernel;
-    private readonly VectorMemoryService? _memoryService;
+    private readonly IRagMemoryService? _memoryService;
     private readonly ChatHistory _history;
     private readonly OpenAIPromptExecutionSettings _settings;
     private readonly SemaphoreSlim _semaphore = new(1, 1);
     private readonly TrayService? _trayService;
 
-    private readonly string _systemPrompt = "Ты — Джарвис, голосовой ассистент для Windows. Работаешь полностью локально.\r\n\r\nТВОЯ ГЛАВНАЯ ЗАДАЧА:\r\nВыполнять голосовые команды пользователя через вызов функций. Используй информацию из памяти (раздел System), чтобы отвечать на вопросы о прошлом.\r\n\r\nПРАВИЛА ФОРМАТА И СТАТУСА (САМОЕ ВАЖНОЕ):\r\n1. Всегда начинай ответ ровно с одного из трёх слов:\r\n   - DONE — если команда успешно выполнена.\r\n   - WARNING — если команда выполнена частично или есть нюанс.\r\n   - ERROR — если команда не выполнена или непонятна.\r\n2. После статуса ставь пробел и пиши краткий ответ на русском.\r\n3. НИКОГДА не показывай JSON функции как пример. Ты должен ВЫЗЫВАТЬ функцию.\r\n4. НИКОГДА не объясняй, что ты собираешься сделать. Сразу делай.\r\n\r\nПРИМЕРЫ ПРАВИЛЬНОГО ОТВЕТА:\r\n- DONE Открыл Chrome.\r\n- DONE Громкость установлена на 50%.\r\n- WARNING Не нашел программу \"Photoshop\", но открыл Paint.\r\n- ERROR Не понял команду.\r\n\r\nПАМЯТЬ (RAG):\r\nВ истории сообщений есть блок \"System с информацией из памяти\". Он содержит прошлые диалоги.\r\n- Если пользователь спрашивает о прошлом (например, \"Как меня зовут?\"), используй эту информацию для ответа.\r\n- Если памяти по теме нет, честно скажи: ERROR Я не помню этого разговора.\r\n- Не выдумывай то, чего нет в памяти.\r\n\r\nСИСТЕМНЫЕ ДЕЙСТВИЯ (ЧТО ТЫ УМЕЕШЬ):\r\n- Открывать приложения и сайты.\r\n- Управлять громкостью (проценты).\r\n- Сворачивать окна.\r\n- Отвечать на вопросы, используя память.\r\n- Выполнять другие функции, которые переданы тебе через Semantic Kernel.\r\n\r\nСТИЛЬ ОТВЕТА:\r\n- Кратко и по делу. Без \"пожалуйста\" и лишних слов.\r\n- Голосовой ассистент — только суть.\r\n\r\nТЕПЕРЬ ВЫПОЛНИ КОМАНДУ ПОЛЬЗОВАТЕЛЯ.";
+    private readonly string _systemPrompt = @"Ты — Джарвис, голосовой ассистент для Windows. Работаешь полностью локально.
 
-    public CommunicationAiService(TrayService trayService, Kernel kernel, ILogger<CommunicationAiService> logger, VectorMemoryService? vectorMemoryService = null) {
+ТВОЯ ГЛАВНАЯ ЗАДАЧА:
+Выполнять голосовые команды пользователя через вызов функций.
+
+ПРАВИЛА ФОРМАТА И СТАТУСА (САМОЕ ВАЖНОЕ):
+1. Всегда начинай ответ ровно с одного из трёх слов:
+   - DONE — если команда успешно выполнена.
+   - WARNING — если команда выполнена частично или есть нюанс.
+   - ERROR — если команда не выполнена или непонятна.
+2. После статуса ставь пробел и пиши краткий ответ на русском.
+
+ПАМЯТЬ (ВАЖНО!):
+Твои ответы могут содержать блок с информацией из прошлых диалогов. Он выглядит так:
+'Вот что я помню из прошлого: ...'
+
+ЭТОТ БЛОК — ТВОЯ ДОЛГОВРЕМЕННАЯ ПАМЯТЬ. ИСПОЛЬЗУЙ ЕГО!
+- Если пользователь спрашивает о прошлом (например, 'о чем я тебя просил'), ОБЯЗАТЕЛЬНО посмотри в этот блок.
+- Если там есть информация — используй её для ответа.
+- Если там пусто — честно скажи: 'ERROR Я не помню этого разговора.'
+
+СИСТЕМНЫЕ ДЕЙСТВИЯ (ЧТО ТЫ УМЕЕШЬ):
+- Открывать приложения и сайты.
+- Управлять громкостью.
+- Отвечать на вопросы, используя память.
+
+СТИЛЬ ОТВЕТА:
+- Кратко и по делу. Только суть.
+
+ТЕПЕРЬ ВЫПОЛНИ КОМАНДУ ПОЛЬЗОВАТЕЛЯ.";
+
+    public CommunicationAiService(TrayService trayService, Kernel kernel, ILogger<CommunicationAiService> logger, IRagMemoryService? ragMemoryService = null) {
         _logger = logger;
 
         _trayService = trayService;
         OnResult += (status) => _trayService.HideOverlayAfterCommand();
 
-        _memoryService = vectorMemoryService;
+        _memoryService = ragMemoryService;
         _kernel = kernel;
 
         _chat = _kernel.GetRequiredService<IChatCompletionService>();
         _history = new();
         _settings = new OpenAIPromptExecutionSettings {
             FunctionChoiceBehavior = FunctionChoiceBehavior.Auto(),
-            Temperature = 0.1,
-            MaxTokens = 1800,
-            TopP = 0.9,
+            Temperature = 0.5,
+            MaxTokens = 1024,
+            TopP = 0.8,
             FrequencyPenalty = 0.1,
             PresencePenalty = 0.1
         };
@@ -100,19 +130,24 @@ public class CommunicationAiService : IDisposable {
             // ========== ОПТИМИЗАЦИЯ: Добавляем контекст памяти ПОСЛЕ ответа LLM ==========
             // Важное замечание: контекст памяти будет использован в СЛЕДУЮЩЕМ запросе
             if (!string.IsNullOrEmpty(longTermContext)) {
+                // Очищаем старые контексты
                 var oldMemoryMessages = _history.Where(m =>
                     m.Role == AuthorRole.System &&
                     m.Content != null &&
-                    m.Content.StartsWith("Вот что я помню из прошлого")
+                    m.Content.Contains("Вот что я помню из прошлого")
                 ).ToList();
 
-                foreach (var old in oldMemoryMessages) {
+                foreach (var old in oldMemoryMessages)
                     _history.Remove(old);
-                }
 
-                // Добавляем новый контекст в начало
+                // Добавляем новый контекст
                 _history.Insert(0, new ChatMessageContent(AuthorRole.System, longTermContext));
-                _logger.LogInformation("Добавлен контекст из памяти для следующих запросов (старые удалены)");
+
+                // 🔥 Добавляем явное напоминание для LLM
+                _history.Insert(1, new ChatMessageContent(AuthorRole.System,
+                    "ВНИМАНИЕ: Выше приведена информация из долговременной памяти. Используй её для ответа на вопрос пользователя, если это уместно."));
+
+                _logger.LogInformation("✅ [RAG] Контекст памяти добавлен в историю");
             }
 
             if (response != null && !string.IsNullOrEmpty(response.Content)) {
