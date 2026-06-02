@@ -2,6 +2,8 @@
 using Jarvis.Services;
 using Microsoft.Extensions.Logging;
 using System.Windows;
+using Application = System.Windows.Application;
+using MessageBox = System.Windows.MessageBox;
 
 namespace Jarvis.ViewModels {
     public partial class MainViewModel : ObservableObject, IDisposable {

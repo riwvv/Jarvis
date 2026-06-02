@@ -5,6 +5,9 @@ using System.Windows;
 using System.Drawing;
 using System.IO;
 using Jarvis.Views.Windows;
+using MenuItem = System.Windows.Controls.MenuItem;
+using Application = System.Windows.Application;
+using ContextMenu = System.Windows.Controls.ContextMenu;
 
 namespace Jarvis.Services {
     public class TrayService {

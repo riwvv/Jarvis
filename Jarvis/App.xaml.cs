@@ -5,6 +5,8 @@ using System.Windows;
 using Jarvis.ViewModels;
 using Jarvis.Views.Windows;
 using Jarvis.Extensions;
+using MessageBox = System.Windows.MessageBox;
+using Application = System.Windows.Application;
 
 namespace Jarvis;
 

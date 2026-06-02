@@ -34,6 +34,7 @@ public static class SemanticKernelExtensions {
         builder.Plugins.AddFromType<BrowserPlugin>();
         builder.Plugins.AddFromType<FilePlugin>();
         builder.Plugins.AddFromType<SystemCommandPlugin>();
+        builder.Plugins.AddFromType<MediaPlayerPlugin>();
         builder.Plugins.AddFromType<PrankPlugin>();
 
         builder.AddOpenAIChatCompletion(modelId: aiSettings!.ModelId, endpoint: new Uri(aiSettings.Endpoint), apiKey: aiSettings.ApiKey);
