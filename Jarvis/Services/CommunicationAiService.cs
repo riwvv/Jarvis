@@ -12,30 +12,62 @@ public class CommunicationAiService : IDisposable {
     private readonly ILogger<CommunicationAiService> _logger;
     private readonly IChatCompletionService _chat;
     private readonly Kernel _kernel;
-    private readonly VectorMemoryService? _memoryService;
     private readonly ChatHistory _history;
     private readonly OpenAIPromptExecutionSettings _settings;
     private readonly SemaphoreSlim _semaphore = new(1, 1);
     private readonly TrayService? _trayService;
 
-    private readonly string _systemPrompt = "Ты — Джарвис, голосовой ассистент для Windows. Работаешь полностью локально.\r\n\r\nТВОЯ ГЛАВНАЯ ЗАДАЧА:\r\nВыполнять голосовые команды пользователя через вызов функций. Используй информацию из памяти (раздел System), чтобы отвечать на вопросы о прошлом.\r\n\r\nПРАВИЛА ФОРМАТА И СТАТУСА (САМОЕ ВАЖНОЕ):\r\n1. Всегда начинай ответ ровно с одного из трёх слов:\r\n   - DONE — если команда успешно выполнена.\r\n   - WARNING — если команда выполнена частично или есть нюанс.\r\n   - ERROR — если команда не выполнена или непонятна.\r\n2. После статуса ставь пробел и пиши краткий ответ на русском.\r\n3. НИКОГДА не показывай JSON функции как пример. Ты должен ВЫЗЫВАТЬ функцию.\r\n4. НИКОГДА не объясняй, что ты собираешься сделать. Сразу делай.\r\n\r\nПРИМЕРЫ ПРАВИЛЬНОГО ОТВЕТА:\r\n- DONE Открыл Chrome.\r\n- DONE Громкость установлена на 50%.\r\n- WARNING Не нашел программу \"Photoshop\", но открыл Paint.\r\n- ERROR Не понял команду.\r\n\r\nПАМЯТЬ (RAG):\r\nВ истории сообщений есть блок \"System с информацией из памяти\". Он содержит прошлые диалоги.\r\n- Если пользователь спрашивает о прошлом (например, \"Как меня зовут?\"), используй эту информацию для ответа.\r\n- Если памяти по теме нет, честно скажи: ERROR Я не помню этого разговора.\r\n- Не выдумывай то, чего нет в памяти.\r\n\r\nСИСТЕМНЫЕ ДЕЙСТВИЯ (ЧТО ТЫ УМЕЕШЬ):\r\n- Открывать приложения и сайты.\r\n- Управлять громкостью (проценты).\r\n- Сворачивать окна.\r\n- Отвечать на вопросы, используя память.\r\n- Выполнять другие функции, которые переданы тебе через Semantic Kernel.\r\n\r\nСТИЛЬ ОТВЕТА:\r\n- Кратко и по делу. Без \"пожалуйста\" и лишних слов.\r\n- Голосовой ассистент — только суть.\r\n\r\nТЕПЕРЬ ВЫПОЛНИ КОМАНДУ ПОЛЬЗОВАТЕЛЯ.";
+    private readonly string _systemPrompt = @"Ты — Джарвис, голосовой ассистент для Windows.
 
-    public CommunicationAiService(TrayService trayService, Kernel kernel, ILogger<CommunicationAiService> logger, VectorMemoryService? vectorMemoryService = null) {
+        У тебя есть инструменты (плагины) для выполнения действий:
+        - ApplicationPlugin: запуск программ и игр
+        - BrowserPlugin: открытие сайтов
+        - SystemAudioPlugin: управление громкостью
+        - SystemCommandPlugin: системные команды (свернуть окна, блокировка, выключение)
+        - FilePlugin: работа с файлами
+        - PrankPlugin: шутки
+        - RagPlugin: долговременная память (SearchMemory, SaveToMemory)
+
+        ## ВАЖНО: ПРАВИЛО СОХРАНЕНИЯ В ПАМЯТЬ
+        После успешного выполнения ЛЮБОГО действия ты ОБЯЗАН вызвать RagPlugin.SaveToMemory, чтобы запомнить что сделал.
+
+        Пример правильной последовательности:
+        1. Пользователь: 'открой ютуб'
+        2. Ты вызываешь BrowserPlugin.OpenUrl
+        3. Получаешь результат 'Открыто: https://youtube.com'
+        4. Ты вызываешь RagPlugin.SaveToMemory с параметрами:
+           - userAction: 'открой ютуб'
+           - assistantResponse: 'DONE Открыл YouTube'
+
+        ## КОГДА НУЖНО СОХРАНЯТЬ:
+        ✅ Команда выполнена успешно → сохранить
+        ✅ Пользователь сообщил факт о себе ('меня зовут') → сохранить
+        ❌ Ошибка или предупреждение → НЕ сохранять
+        ❌ Вопрос о прошлом ('о чем я просил') → НЕ сохранять
+
+        ## КОГДА НУЖНО ИСКАТЬ В ПАМЯТИ:
+        - 'о чем я тебя просил' → SearchMemory
+        - 'как меня зовут' → SearchMemory
+        - 'что я делал вчера' → SearchMemory
+
+        Формат ответа: DONE/WARNING/ERROR + сообщение
+
+        Запомни: ЛЮБОЕ успешное действие должно быть сохранено в память через SaveToMemory!";
+
+    public CommunicationAiService(TrayService trayService, Kernel kernel, ILogger<CommunicationAiService> logger) {
         _logger = logger;
-
         _trayService = trayService;
-        OnResult += (status) => _trayService.HideOverlayAfterCommand();
-
-        _memoryService = vectorMemoryService;
         _kernel = kernel;
+
+        OnResult += (status) => _trayService.HideOverlayAfterCommand();
 
         _chat = _kernel.GetRequiredService<IChatCompletionService>();
         _history = new();
         _settings = new OpenAIPromptExecutionSettings {
             FunctionChoiceBehavior = FunctionChoiceBehavior.Auto(),
-            Temperature = 0.1,
-            MaxTokens = 1800,
-            TopP = 0.9,
+            Temperature = 0.5,
+            MaxTokens = 1024,
+            TopP = 0.8,
             FrequencyPenalty = 0.1,
             PresencePenalty = 0.1
         };
@@ -57,84 +89,29 @@ public class CommunicationAiService : IDisposable {
         try {
             _trayService?.CommandReceived();
             OnExecute?.Invoke("EXECUTE");
-            _logger.LogInformation($"Отправка запроса к AI: {userQuery}");
+            _logger.LogInformation($"Запрос: {userQuery}");
 
-            // ========== ОПТИМИЗАЦИЯ: Запускаем поиск в памяти параллельно ==========
-            // Запускаем задачу поиска в памяти (не ждём её завершения)
-            Task<string?>? memoryTask = null;
-            if (_memoryService != null) {
-                memoryTask = _memoryService.SearchRelevantContextAsync(userQuery);
-                _logger.LogDebug("Запущен параллельный поиск в памяти");
-            }
+            // Формируем историю с текущим запросом
+            var currentHistory = new ChatHistory();
+            foreach (var msg in _history)
+                currentHistory.Add(msg);
+            currentHistory.AddUserMessage(userQuery);
 
-            // ========== ОПТИМИЗАЦИЯ: Сразу добавляем вопрос пользователя в историю ==========
-            // Не ждём память, чтобы LLM могла начать обработку
+            // Отправляем запрос (LLM сама решит, вызывать ли RagPlugin)
+            var response = await _chat.GetChatMessageContentAsync(currentHistory, _settings, _kernel, cancellationToken);
+            var responseContent = response?.Content ?? string.Empty;
+
+            // Сохраняем диалог в историю
             _history.AddUserMessage(userQuery);
+            _history.AddAssistantMessage(responseContent);
 
-            // ========== ОПТИМИЗАЦИЯ: Диагностика контекста (быстрая) ==========
-            _logger.LogInformation("=== КОНТЕКСТ ПЕРЕД ОТПРАВКОЙ ===");
-            foreach (var message in _history) {
-                var content = message.Content ?? "";
-                // Оптимизация: не создаём подстроку, если не нужно
-                if (content.Length > 150) {
-                    _logger.LogInformation($"[{message.Role}]: {content.AsSpan(0, 150)}...");
-                }
-                else {
-                    _logger.LogInformation($"[{message.Role}]: {content}");
-                }
-            }
-
-            // ========== ОПТИМИЗАЦИЯ: Запрос к модели и ожидание памяти ПАРАЛЛЕЛЬНО ==========
-            // Запускаем запрос к LLM (это самый долгий этап)
-            var llmTask = _chat.GetChatMessageContentAsync(_history, _settings, _kernel, cancellationToken);
-
-            // Ждём завершения И LLM, И поиска памяти (если он был запущен)
-            if (memoryTask != null)
-                await Task.WhenAll(llmTask, memoryTask);
-            else
-                await llmTask;
-
-            var response = await llmTask;
-            var longTermContext = memoryTask?.Result;
-
-            // ========== ОПТИМИЗАЦИЯ: Добавляем контекст памяти ПОСЛЕ ответа LLM ==========
-            // Важное замечание: контекст памяти будет использован в СЛЕДУЮЩЕМ запросе
-            if (!string.IsNullOrEmpty(longTermContext)) {
-                var oldMemoryMessages = _history.Where(m =>
-                    m.Role == AuthorRole.System &&
-                    m.Content != null &&
-                    m.Content.StartsWith("Вот что я помню из прошлого")
-                ).ToList();
-
-                foreach (var old in oldMemoryMessages) {
-                    _history.Remove(old);
-                }
-
-                // Добавляем новый контекст в начало
-                _history.Insert(0, new ChatMessageContent(AuthorRole.System, longTermContext));
-                _logger.LogInformation("Добавлен контекст из памяти для следующих запросов (старые удалены)");
-            }
-
-            if (response != null && !string.IsNullOrEmpty(response.Content)) {
-                _history.AddAssistantMessage(response.Content);
-
-                // Сохраняем только успешные ответы
-                if (_memoryService != null && !response.Content.StartsWith("ERROR")) {
-                    await _memoryService.SaveMemoryAsync(userQuery, response.Content);
-                    _logger.LogInformation("Диалог сохранён в память");
-                }
-
-                string status = ExtractStatusFromResponse(response.Content);
-                OnResult?.Invoke(status);
-                _logger.LogInformation($"Ответ AI: {response.Content}");
-                return response.Content;
-            }
-
-            OnResult?.Invoke("ERROR: Модель вернула пустой ответ");
-            return null;
+            string status = ExtractStatusFromResponse(responseContent);
+            OnResult?.Invoke(status);
+            _logger.LogInformation($"Ответ: {responseContent}");
+            return responseContent;
         }
         catch (OperationCanceledException) {
-            OnResult?.Invoke("WARNING: Запрос был отменен");
+            OnResult?.Invoke("WARNING: Запрос отменён");
             return null;
         }
         catch (Exception ex) {

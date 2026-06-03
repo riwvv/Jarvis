@@ -30,6 +30,10 @@
 	</ItemGroup>
 
 	<ItemGroup>
+	  <Content Remove="Models\VectorDocument.cs" />
+	</ItemGroup>
+
+	<ItemGroup>
 	  <Content Include="Resources\RHVoice-voice-Russian-Evgeniy-Rus-v4.0.2017.22-setup.exe">
 	    <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
 	  </Content>
@@ -46,9 +50,10 @@
     <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.8" />
     <PackageReference Include="Microsoft.Extensions.Logging" Version="10.0.8" />
     <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="10.0.8" />
-    <PackageReference Include="Microsoft.SemanticKernel" Version="1.76.0" />
-    <PackageReference Include="Microsoft.SemanticKernel.Core" Version="1.76.0" />
+    <PackageReference Include="Microsoft.SemanticKernel" Version="1.77.0" />
+    <PackageReference Include="Microsoft.SemanticKernel.Core" Version="1.77.0" />
     <PackageReference Include="NAudio" Version="2.3.0" />
+    <PackageReference Include="RAGSharp" Version="1.0.0" />
     <PackageReference Include="Serilog" Version="4.3.1" />
     <PackageReference Include="Serilog.Extensions.Hosting" Version="10.0.0" />
     <PackageReference Include="Serilog.Extensions.Logging" Version="10.0.0" />
