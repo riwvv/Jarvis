@@ -275,6 +275,17 @@ public class ApplicationPlugin
         return string.Join(", ", _steamGames.Keys.OrderBy(x => x));
     }
 
+    [KernelFunction]
+    [Description("Обновляет список игр в Steam (если установили новую игру)")]
+    public async Task<string> RefreshSteamGames()
+    {
+        _steamScanned = false;
+        _steamGames = null;
+        await ScanSteamGamesAsync();
+
+        return $"Обновлено. Найдено игр: {_steamGames?.Count ?? 0}";
+    }
+
     private async Task ScanSteamGamesAsync()
     {
         _steamGames = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
