@@ -22,6 +22,7 @@ public static class SemanticKernelExtensions {
         services.AddTransient<FilePlugin>();
         services.AddTransient<SystemCommandPlugin>();
         services.AddTransient<PrankPlugin>();
+        services.AddTransient<ReminderPlugin>();
 
         return services;
     }
@@ -35,6 +36,7 @@ public static class SemanticKernelExtensions {
         builder.Plugins.AddFromType<FilePlugin>();
         builder.Plugins.AddFromType<SystemCommandPlugin>();
         builder.Plugins.AddFromType<PrankPlugin>();
+        builder.Plugins.AddFromType<ReminderPlugin>();
 
         builder.AddOpenAIChatCompletion(modelId: aiSettings!.ModelId, endpoint: new Uri(aiSettings.Endpoint), apiKey: aiSettings.ApiKey);
         return builder.Build();

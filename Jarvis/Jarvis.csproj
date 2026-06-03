@@ -30,6 +30,10 @@
 	</ItemGroup>
 
 	<ItemGroup>
+	  <Content Remove="Models\ReminderItem.cs" />
+	</ItemGroup>
+
+	<ItemGroup>
 	  <Content Include="Resources\RHVoice-voice-Russian-Evgeniy-Rus-v4.0.2017.22-setup.exe">
 	    <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
 	  </Content>
