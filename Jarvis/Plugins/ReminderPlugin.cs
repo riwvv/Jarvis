@@ -1,11 +1,13 @@
-﻿using System.ComponentModel;
+﻿using Jarvis.Models;
+using Microsoft.Extensions.Logging;
+using Microsoft.SemanticKernel;
+using Serilog.Core;
+using System.ComponentModel;
 using System.Diagnostics;
+using System.IO;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
-using System.IO;
-using Microsoft.SemanticKernel;
-using Jarvis.Models;
 
 namespace Jarvis.Plugins;
 
@@ -15,16 +17,18 @@ public class ReminderPlugin : IDisposable
     private readonly object _lock = new object();
     private Timer? _timer;
     private readonly string _storageFile;
+    private readonly ILogger<ReminderPlugin> _logger;
     private bool _disposed;
 
     public event Action<string>? OnNotification;
 
-    public ReminderPlugin()
+    public ReminderPlugin(ILogger<ReminderPlugin> logger)
     {
+        _logger = logger;
         _storageFile = Path.Combine(AppContext.BaseDirectory, "reminders.json");
         LoadReminders();
         StartTimer();
-        Debug.WriteLine($"ReminderPlugin инициализирован. Загружено напоминаний: {_reminders.Count}");
+        _logger.LogInformation($"ReminderPlugin инициализирован. Загружено напоминаний: {_reminders.Count}");
     }
 
     [KernelFunction]
@@ -44,13 +48,12 @@ public class ReminderPlugin : IDisposable
                 _reminders.Add(reminder);
                 SaveReminders();
             }
-
-            Debug.WriteLine($"Добавлено напоминание: {reminder.Message} на {reminder.ScheduledTime:HH:mm:ss}");
+            _logger.LogInformation($"Добавлено напоминание: {reminder.Message} на {reminder.ScheduledTime:HH:mm:ss}");
             return $"Напоминание создано: {reminder.Message} в {reminder.ScheduledTime:HH:mm:ss}";
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"SetReminder error: {ex.Message}");
+            _logger.LogError($"SetReminder error: {ex.Message}");
             return $"Ошибка: {ex.Message}";
         }
     }
@@ -73,12 +76,12 @@ public class ReminderPlugin : IDisposable
                 SaveReminders();
             }
 
-            Debug.WriteLine($"Добавлено периодическое напоминание: {recurring.Message}");
+            _logger.LogInformation($"Добавлено периодическое напоминание: {recurring.Message}");
             return $"Периодическое напоминание создано: {recurring.Message} ({GetIntervalText(recurring)})";
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"SetRecurringReminder error: {ex.Message}");
+            _logger.LogError($"SetRecurringReminder error: {ex.Message}");
             return $"Ошибка: {ex.Message}";
         }
     }
@@ -137,7 +140,8 @@ public class ReminderPlugin : IDisposable
 
             _reminders.Remove(toRemove);
             SaveReminders();
-            Debug.WriteLine($"Удалено напоминание: {toRemove.Message}");
+
+            _logger.LogInformation($"Удалено напоминание: {toRemove.Message}");
             return $"Удалено: {toRemove.Message}";
         }
     }
@@ -156,7 +160,7 @@ public class ReminderPlugin : IDisposable
                 _reminders.Remove(r);
 
             SaveReminders();
-            Debug.WriteLine($"Остановлено {recurring.Count} периодических напоминаний");
+            _logger.LogInformation($"Остановлено {recurring.Count} периодических напоминаний");
             return $"Остановлено {recurring.Count} периодических напоминаний";
         }
     }
@@ -170,7 +174,7 @@ public class ReminderPlugin : IDisposable
             int count = _reminders.Count;
             _reminders.Clear();
             SaveReminders();
-            Debug.WriteLine($"Очищено {count} напоминаний");
+            _logger.LogInformation($"Очищено {count} напоминаний");
             return $"Удалено {count} напоминаний";
         }
     }
@@ -189,7 +193,7 @@ public class ReminderPlugin : IDisposable
 
             foreach (var reminder in due)
             {
-                Debug.WriteLine($"СРАБОТАЛО: {reminder.Message}");
+                _logger.LogInformation($"СРАБОТАЛО: {reminder.Message}");
                 OnNotification?.Invoke(reminder.Message);
                 _reminders.Remove(reminder);
             }
@@ -198,7 +202,7 @@ public class ReminderPlugin : IDisposable
 
             foreach (var reminder in recurringDue)
             {
-                Debug.WriteLine($"СРАБОТАЛО (период): {reminder.Message}");
+                _logger.LogInformation($"СРАБОТАЛО (период): {reminder.Message}");
                 OnNotification?.Invoke(reminder.Message);
                 reminder.UpdateNextOccurrence();
             }
@@ -294,7 +298,7 @@ public class ReminderPlugin : IDisposable
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"Load reminders error: {ex.Message}");
+            _logger.LogError($"Load reminders error: {ex.Message}");
             _reminders = new List<ReminderItem>();
         }
     }
@@ -308,7 +312,7 @@ public class ReminderPlugin : IDisposable
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"Save reminders error: {ex.Message}");
+            _logger.LogError($"Save reminders error: {ex.Message}");
         }
     }
 
