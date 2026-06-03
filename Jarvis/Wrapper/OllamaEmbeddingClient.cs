@@ -1,5 +1,4 @@
-﻿// Services/OllamaEmbeddingClient.cs
-using Jarvis.Models;
+﻿using Jarvis.Models;
 using Microsoft.Extensions.Logging;
 using RAGSharp.Embeddings;
 using System.Net.Http;
@@ -14,14 +13,13 @@ public class OllamaEmbeddingClient : IEmbeddingClient, IDisposable {
     private readonly string _endpoint;
     private readonly ILogger? _logger;
 
-    public OllamaEmbeddingClient(string defaultModel = "qwen3-embedding:4b",
-                                  string endpoint = "http://localhost:11434",
-                                  ILogger? logger = null) {
+    public OllamaEmbeddingClient(string defaultModel = "qwen3-embedding:4b", string endpoint = "http://localhost:11434", ILogger? logger = null) {
         _defaultModel = defaultModel;
         _endpoint = endpoint;
         _logger = logger;
-        _httpClient = new HttpClient();
-        _httpClient.Timeout = TimeSpan.FromSeconds(30);
+        _httpClient = new HttpClient {
+            Timeout = TimeSpan.FromSeconds(30)
+        };
     }
 
     public async Task<float[]> GetEmbeddingAsync(string input, string? model = null) {

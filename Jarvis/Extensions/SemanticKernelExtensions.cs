@@ -1,8 +1,11 @@
-﻿using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
+﻿using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Configuration;
 using Microsoft.SemanticKernel;
+using System.Net.Http;
 using Jarvis.Configuration;
+using Jarvis.Interfaces;
 using Jarvis.Plugins;
+using Jarvis.Wrapper;
 
 namespace Jarvis.Extensions;
 
@@ -14,7 +17,11 @@ public static class SemanticKernelExtensions {
             throw new InvalidOperationException("AISettings not found in configuration");
 
         services.AddSingleton(aiSettings);
-        services.AddSingleton(sp => BuildKernel(aiSettings));
+
+        services.AddSingleton(sp => {
+            var ragMemory = sp.GetRequiredService<IRagMemoryService>();
+            return BuildKernel(aiSettings, ragMemory);
+        });
 
         services.AddTransient<ApplicationPlugin>();
         services.AddTransient<SystemAudioPlugin>();
@@ -26,7 +33,7 @@ public static class SemanticKernelExtensions {
         return services;
     }
 
-    private static Kernel BuildKernel(AISettings aiSettings) {
+    private static Kernel BuildKernel(AISettings aiSettings, IRagMemoryService ragMemory) {
         var builder = Kernel.CreateBuilder();
 
         builder.Plugins.AddFromType<ApplicationPlugin>();
@@ -36,7 +43,14 @@ public static class SemanticKernelExtensions {
         builder.Plugins.AddFromType<SystemCommandPlugin>();
         builder.Plugins.AddFromType<PrankPlugin>();
 
-        builder.AddOpenAIChatCompletion(modelId: aiSettings!.ModelId, endpoint: new Uri(aiSettings.Endpoint), apiKey: aiSettings.ApiKey);
+        builder.Plugins.AddFromObject(new RagPlugin(ragMemory));
+
+        builder.AddOpenAIChatCompletion(
+            modelId: aiSettings.ModelId,
+            endpoint: new Uri(aiSettings.Endpoint),
+            apiKey: aiSettings.ApiKey,
+            httpClient: new HttpClient(new OllamaContextHandler(16384)));
+
         return builder.Build();
     }
 }
