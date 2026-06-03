@@ -49,9 +49,9 @@ ollama pull qwen3-embedding:4b
 
 ```
 📁 Jarvis
-📄 Jarvis.exe
-📁 Models
-📁 vosk-model-ru-0.42
+├── 📄 Jarvis.exe
+└── 📁 Models
+    └── 📁 vosk-model-ru-0.42
 ```
 
 ### 3. Запустите Jarvis
