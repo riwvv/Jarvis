@@ -20,10 +20,10 @@ public partial class App : Application {
         .UseSerilog((context, services, config) => config.ReadFrom.Configuration(context.Configuration)
                 .WriteTo.Debug()
                 .WriteTo.File("logs/jarvis-logs.txt", rollingInterval: RollingInterval.Day, retainedFileCountLimit: 7))
-        .ConfigureServices((context, services) => services.AddSemanticKernel(context.Configuration)
+        .ConfigureServices((context, services) => services.AddServices()
+                .AddSemanticKernel(context.Configuration)
                 .AddOllamaHealthCheck()
                 .AddConfigure(context.Configuration)
-                .AddServices()
                 .AddViewModels()
                 .AddViews());
 

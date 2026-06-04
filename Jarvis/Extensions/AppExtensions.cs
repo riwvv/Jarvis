@@ -4,6 +4,7 @@ using Jarvis.Configuration;
 using Jarvis.Services;
 using Jarvis.ViewModels;
 using Jarvis.Views.Windows;
+using Jarvis.Interfaces;
 
 namespace Jarvis.Extensions;
 
@@ -18,7 +19,7 @@ public static class AppExtensions {
     public static IServiceCollection AddServices(this IServiceCollection services) {
         services.AddSingleton<SpeechToTextService>();
         services.AddSingleton<TextToSpeechService>();
-        services.AddSingleton<VectorMemoryService>();
+        services.AddSingleton<IRagMemoryService, RagMemoryService>();
         services.AddSingleton<CommunicationAiService>();
         services.AddSingleton<TrayService>();
         services.AddHostedService<VoiceInstallerService>();
