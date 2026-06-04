@@ -4,8 +4,9 @@ using Microsoft.Extensions.Options;
 using NAudio.Wave;
 using System.IO;
 using System.Windows;
-using System.Windows.Threading;
 using Vosk;
+using MessageBox = System.Windows.MessageBox;
+using Timer = System.Threading.Timer;
 
 namespace Jarvis.Services {
     public class SpeechToTextService : IDisposable {
@@ -49,7 +50,7 @@ namespace Jarvis.Services {
         private readonly object _micLock = new();
 
         // Таймаут бездействия (10 секунд)
-        private Timer? _inactivityTimer;
+        private System.Threading.Timer? _inactivityTimer;
         private const int INACTIVITY_TIMEOUT_MS = 10000;
         private readonly ILogger<SpeechToTextService> _logger;
         private readonly SpeechSettings _settings;

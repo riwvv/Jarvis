@@ -4,6 +4,8 @@ using System.Diagnostics;
 using System.IO;
 using System.Speech.Synthesis;
 using System.Windows;
+using Application = System.Windows.Application;
+using MessageBox = System.Windows.MessageBox;
 
 namespace Jarvis.Services;
 
