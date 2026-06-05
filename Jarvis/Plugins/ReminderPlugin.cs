@@ -1,34 +1,17 @@
-﻿using Jarvis.Models;
-using Microsoft.Extensions.Logging;
+﻿using Jarvis.Services;
 using Microsoft.SemanticKernel;
-using Serilog.Core;
 using System.ComponentModel;
-using System.Diagnostics;
-using System.IO;
 using System.Text;
-using System.Text.Json;
-using System.Text.RegularExpressions;
 
 namespace Jarvis.Plugins;
 
-public class ReminderPlugin : IDisposable
+public class ReminderPlugin
 {
-    private List<ReminderItem> _reminders = new();
-    private readonly object _lock = new object();
-    private Timer? _timer;
-    private readonly string _storageFile;
-    private readonly ILogger<ReminderPlugin> _logger;
-    private bool _disposed;
+    private readonly ReminderService _reminderService;
 
-    public event Action<string>? OnNotification;
-
-    public ReminderPlugin(ILogger<ReminderPlugin> logger)
+    public ReminderPlugin(ReminderService reminderService)
     {
-        _logger = logger;
-        _storageFile = Path.Combine(AppContext.BaseDirectory, "reminders.json");
-        LoadReminders();
-        StartTimer();
-        _logger.LogInformation($"ReminderPlugin инициализирован. Загружено напоминаний: {_reminders.Count}");
+        _reminderService = reminderService;
     }
 
     [KernelFunction]
@@ -37,25 +20,12 @@ public class ReminderPlugin : IDisposable
         [Description("Время в формате: 'через 15 минут', 'в 15:30', 'через 2 часа'")] string when,
         [Description("Текст напоминания")] string message)
     {
-        try
-        {
-            var reminder = ParseReminder(when, message);
-            if (reminder == null)
-                return "Не удалось распознать время. Используйте: 'через 15 минут', 'в 15:30' или 'через 2 часа'";
+        var reminder = _reminderService.ParseReminder(when, message);
+        if (reminder == null)
+            return "Не удалось распознать время. Используйте: 'через 15 минут', 'в 15:30' или 'через 2 часа'";
 
-            lock (_lock)
-            {
-                _reminders.Add(reminder);
-                SaveReminders();
-            }
-            _logger.LogInformation($"Добавлено напоминание: {reminder.Message} на {reminder.ScheduledTime:HH:mm:ss}");
-            return $"Напоминание создано: {reminder.Message} в {reminder.ScheduledTime:HH:mm:ss}";
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError($"SetReminder error: {ex.Message}");
-            return $"Ошибка: {ex.Message}";
-        }
+        _reminderService.AddReminder(reminder.ScheduledTime, reminder.Message, false);
+        return $"Напоминание создано: {reminder.Message} в {reminder.ScheduledTime:HH:mm:ss}";
     }
 
     [KernelFunction]
@@ -64,53 +34,41 @@ public class ReminderPlugin : IDisposable
         [Description("Период: 'каждый час', 'каждый день в 9:00', 'каждые 30 минут'")] string interval,
         [Description("Текст напоминания")] string message)
     {
-        try
-        {
-            var recurring = ParseRecurring(interval, message);
-            if (recurring == null)
-                return "Не удалось распознать период. Используйте: 'каждый час', 'каждые 30 минут', 'каждый день в 9:00'";
+        var recurring = _reminderService.ParseRecurring(interval, message);
+        if (recurring == null)
+            return "Не удалось распознать период. Используйте: 'каждый час', 'каждые 30 минут', 'каждый день в 9:00'";
 
-            lock (_lock)
-            {
-                _reminders.Add(recurring);
-                SaveReminders();
-            }
+        _reminderService.AddReminder(recurring.ScheduledTime, recurring.Message, true,
+            recurring.RecurringType, recurring.RecurringValue,
+            recurring.RecurringHour ?? 0, recurring.RecurringMinute ?? 0);
 
-            _logger.LogInformation($"Добавлено периодическое напоминание: {recurring.Message}");
-            return $"Периодическое напоминание создано: {recurring.Message} ({GetIntervalText(recurring)})";
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError($"SetRecurringReminder error: {ex.Message}");
-            return $"Ошибка: {ex.Message}";
-        }
+        return $"Периодическое напоминание создано: {recurring.Message} ({_reminderService.GetIntervalText(recurring)})";
     }
 
     [KernelFunction]
     [Description("Показывает все активные напоминания")]
     public async Task<string> ShowReminders()
     {
-        lock (_lock)
+        var reminders = _reminderService.GetAllReminders();
+
+        if (reminders.Count == 0)
+            return "Нет активных напоминаний";
+
+        var sb = new StringBuilder();
+        sb.AppendLine($"Активные напоминания ({reminders.Count}):");
+        sb.AppendLine();
+
+        int index = 1;
+        foreach (var r in reminders)
         {
-            if (_reminders.Count == 0)
-                return "Нет активных напоминаний";
+            string timeInfo = r.IsRecurring
+                ? _reminderService.GetIntervalText(r)
+                : $"{r.ScheduledTime:HH:mm:ss}";
 
-            var sb = new StringBuilder();
-            sb.AppendLine($"Активные напоминания ({_reminders.Count}):");
-            sb.AppendLine();
-
-            int index = 1;
-            foreach (var r in _reminders)
-            {
-                string timeInfo = r.IsRecurring
-                    ? GetIntervalText(r)
-                    : $"{r.ScheduledTime:HH:mm:ss}";
-
-                sb.AppendLine($"{index++}. {timeInfo} — {r.Message}");
-            }
-
-            return sb.ToString();
+            sb.AppendLine($"{index++}. {timeInfo} — {r.Message}");
         }
+
+        return sb.ToString();
     }
 
     [KernelFunction]
@@ -118,210 +76,48 @@ public class ReminderPlugin : IDisposable
     public async Task<string> RemoveReminder(
         [Description("Номер напоминания из списка или ключевое слово")] string identifier)
     {
-        lock (_lock)
+        bool removed = false;
+
+        if (int.TryParse(identifier, out int index))
         {
-            if (_reminders.Count == 0)
-                return "Нет активных напоминаний";
-
-            ReminderItem? toRemove = null;
-
-            if (int.TryParse(identifier, out int index) && index > 0 && index <= _reminders.Count)
+            var reminders = _reminderService.GetAllReminders();
+            if (index > 0 && index <= reminders.Count)
             {
-                toRemove = _reminders[index - 1];
+                var toRemove = reminders[index - 1];
+                removed = _reminderService.RemoveReminder(r => r.Id == toRemove.Id);
+                if (removed)
+                    return $"Удалено: {toRemove.Message}";
             }
-            else
-            {
-                toRemove = _reminders.FirstOrDefault(r =>
-                    r.Message.Contains(identifier, StringComparison.OrdinalIgnoreCase));
-            }
-
-            if (toRemove == null)
-                return $"Напоминание \"{identifier}\" не найдено";
-
-            _reminders.Remove(toRemove);
-            SaveReminders();
-
-            _logger.LogInformation($"Удалено напоминание: {toRemove.Message}");
-            return $"Удалено: {toRemove.Message}";
         }
+        else
+        {
+            removed = _reminderService.RemoveReminder(r =>
+                r.Message.Contains(identifier, StringComparison.OrdinalIgnoreCase));
+            if (removed)
+                return $"Удалено напоминание с текстом: {identifier}";
+        }
+
+        return $"Напоминание \"{identifier}\" не найдено";
     }
 
     [KernelFunction]
     [Description("Останавливает все периодические напоминания")]
     public async Task<string> StopAllRecurringReminders()
     {
-        lock (_lock)
-        {
-            var recurring = _reminders.Where(r => r.IsRecurring).ToList();
-            if (recurring.Count == 0)
-                return "Нет периодических напоминаний";
+        int count = _reminderService.RemoveAllRecurring();
 
-            foreach (var r in recurring)
-                _reminders.Remove(r);
+        if (count == 0)
+            return "Нет периодических напоминаний";
 
-            SaveReminders();
-            _logger.LogInformation($"Остановлено {recurring.Count} периодических напоминаний");
-            return $"Остановлено {recurring.Count} периодических напоминаний";
-        }
+        return $"Остановлено {count} периодических напоминаний";
     }
 
     [KernelFunction]
     [Description("Очищает все напоминания")]
     public async Task<string> ClearAllReminders()
     {
-        lock (_lock)
-        {
-            int count = _reminders.Count;
-            _reminders.Clear();
-            SaveReminders();
-            _logger.LogInformation($"Очищено {count} напоминаний");
-            return $"Удалено {count} напоминаний";
-        }
-    }
-
-    private void StartTimer()
-    {
-        _timer = new Timer(CheckReminders, null, TimeSpan.Zero, TimeSpan.FromSeconds(5));
-    }
-
-    private void CheckReminders(object? state)
-    {
-        lock (_lock)
-        {
-            var now = DateTime.Now;
-            var due = _reminders.Where(r => !r.IsRecurring && r.ScheduledTime <= now).ToList();
-
-            foreach (var reminder in due)
-            {
-                _logger.LogInformation($"СРАБОТАЛО: {reminder.Message}");
-                OnNotification?.Invoke(reminder.Message);
-                _reminders.Remove(reminder);
-            }
-
-            var recurringDue = _reminders.Where(r => r.IsRecurring && r.ScheduledTime <= now).ToList();
-
-            foreach (var reminder in recurringDue)
-            {
-                _logger.LogInformation($"СРАБОТАЛО (период): {reminder.Message}");
-                OnNotification?.Invoke(reminder.Message);
-                reminder.UpdateNextOccurrence();
-            }
-
-            if (due.Count > 0 || recurringDue.Count > 0)
-                SaveReminders();
-        }
-    }
-
-    private ReminderItem? ParseReminder(string when, string message)
-    {
-        when = when.ToLower().Trim();
-
-        var throughMatch = Regex.Match(when, @"через\s+(\d+)\s+(минут|минуту|минуты|час|часа|часов)");
-        if (throughMatch.Success)
-        {
-            int value = int.Parse(throughMatch.Groups[1].Value);
-            string unit = throughMatch.Groups[2].Value;
-
-            var delay = unit.Contains("минут") ? TimeSpan.FromMinutes(value) : TimeSpan.FromHours(value);
-            return new ReminderItem(DateTime.Now.Add(delay), message, false);
-        }
-
-        var timeMatch = Regex.Match(when, @"(\d{1,2}):(\d{2})");
-        if (timeMatch.Success)
-        {
-            int hour = int.Parse(timeMatch.Groups[1].Value);
-            int minute = int.Parse(timeMatch.Groups[2].Value);
-            var scheduled = DateTime.Today.AddHours(hour).AddMinutes(minute);
-
-            if (scheduled <= DateTime.Now)
-                scheduled = scheduled.AddDays(1);
-
-            return new ReminderItem(scheduled, message, false);
-        }
-
-        return null;
-    }
-
-    private ReminderItem? ParseRecurring(string interval, string message)
-    {
-        interval = interval.ToLower().Trim();
-
-        if (interval.Contains("каждый час"))
-            return new ReminderItem(DateTime.Now.AddHours(1), message, true, "hourly");
-
-        if (interval.Contains("каждый день"))
-            return new ReminderItem(DateTime.Now.AddDays(1), message, true, "daily");
-
-        var everyMatch = Regex.Match(interval, @"каждые?\s+(\d+)\s+минут");
-        if (everyMatch.Success)
-        {
-            int minutes = int.Parse(everyMatch.Groups[1].Value);
-            return new ReminderItem(DateTime.Now.AddMinutes(minutes), message, true, "minute", minutes);
-        }
-
-        var dailyMatch = Regex.Match(interval, @"каждый день в (\d{1,2}):(\d{2})");
-        if (dailyMatch.Success)
-        {
-            int hour = int.Parse(dailyMatch.Groups[1].Value);
-            int minute = int.Parse(dailyMatch.Groups[2].Value);
-            var scheduled = DateTime.Today.AddHours(hour).AddMinutes(minute);
-            if (scheduled <= DateTime.Now)
-                scheduled = scheduled.AddDays(1);
-
-            return new ReminderItem(scheduled, message, true, "dailyAtTime", null, hour, minute);
-        }
-
-        return null;
-    }
-
-    private string GetIntervalText(ReminderItem r)
-    {
-        return r.RecurringType switch
-        {
-            "hourly" => "каждый час",
-            "daily" => "каждый день",
-            "dailyAtTime" => $"каждый день в {r.RecurringHour:D2}:{r.RecurringMinute:D2}",
-            "minute" => $"каждые {r.RecurringValue} минут",
-            _ => "периодическое"
-        };
-    }
-
-    private void LoadReminders()
-    {
-        try
-        {
-            if (File.Exists(_storageFile))
-            {
-                var json = File.ReadAllText(_storageFile);
-                _reminders = JsonSerializer.Deserialize<List<ReminderItem>>(json) ?? new List<ReminderItem>();
-            }
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError($"Load reminders error: {ex.Message}");
-            _reminders = new List<ReminderItem>();
-        }
-    }
-
-    private void SaveReminders()
-    {
-        try
-        {
-            var json = JsonSerializer.Serialize(_reminders, new JsonSerializerOptions { WriteIndented = true });
-            File.WriteAllText(_storageFile, json);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError($"Save reminders error: {ex.Message}");
-        }
-    }
-
-    public void Dispose()
-    {
-        if (!_disposed)
-        {
-            _timer?.Dispose();
-            _disposed = true;
-        }
+        var count = _reminderService.GetAllReminders().Count;
+        _reminderService.ClearAll();
+        return $"Удалено {count} напоминаний";
     }
 }

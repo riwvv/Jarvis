@@ -1,11 +1,12 @@
-﻿using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Configuration;
-using Microsoft.SemanticKernel;
-using System.Net.Http;
-using Jarvis.Configuration;
+﻿using Jarvis.Configuration;
 using Jarvis.Interfaces;
 using Jarvis.Plugins;
+using Jarvis.Services;
 using Jarvis.Wrapper;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.SemanticKernel;
+using System.Net.Http;
 
 namespace Jarvis.Extensions;
 
@@ -20,7 +21,7 @@ public static class SemanticKernelExtensions {
 
         services.AddSingleton(sp => {
             var ragMemory = sp.GetRequiredService<IRagMemoryService>();
-            return BuildKernel(aiSettings, ragMemory);
+            return BuildKernel(aiSettings, ragMemory, sp);
         });
 
         services.AddTransient<ApplicationPlugin>();
@@ -34,7 +35,7 @@ public static class SemanticKernelExtensions {
         return services;
     }
 
-    private static Kernel BuildKernel(AISettings aiSettings, IRagMemoryService ragMemory) {
+    private static Kernel BuildKernel(AISettings aiSettings, IRagMemoryService ragMemory, IServiceProvider sp) {
         var builder = Kernel.CreateBuilder();
 
         builder.Plugins.AddFromType<ApplicationPlugin>();
@@ -43,7 +44,11 @@ public static class SemanticKernelExtensions {
         builder.Plugins.AddFromType<FilePlugin>();
         builder.Plugins.AddFromType<SystemCommandPlugin>();
         builder.Plugins.AddFromType<PrankPlugin>();
-        builder.Plugins.AddFromType<ReminderPlugin>();
+
+        //builder.Plugins.AddFromType<ReminderPlugin>();
+
+        var reminderPlugin = sp.GetRequiredService<ReminderPlugin>();
+        builder.Plugins.AddFromObject(reminderPlugin);
 
         builder.Plugins.AddFromObject(new RagPlugin(ragMemory));
 

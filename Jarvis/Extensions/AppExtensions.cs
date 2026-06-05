@@ -22,6 +22,7 @@ public static class AppExtensions {
         services.AddSingleton<IRagMemoryService, RagMemoryService>();
         services.AddSingleton<CommunicationAiService>();
         services.AddSingleton<TrayService>();
+        services.AddSingleton<ReminderService>();
         services.AddHostedService<VoiceInstallerService>();
 
         return services;
