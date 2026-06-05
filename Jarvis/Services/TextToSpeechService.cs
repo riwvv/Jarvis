@@ -1,4 +1,4 @@
-﻿using Microsoft.Extensions.Options;
+﻿using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using System.Speech.Synthesis;
 using Jarvis.Configuration;
@@ -10,17 +10,17 @@ public class TextToSpeechService : IDisposable {
     private bool _isSpeaking = false;
     private readonly SemaphoreSlim _speakSemaphore = new(1, 1);
     private readonly ILogger<TextToSpeechService> _logger;
-    private readonly SpeechSettings _speechSettings;
-
-    private const string TargetVoiceName = "Pavel";
+    private readonly IConfiguration _configuration;
+    private readonly string _targetVoiceName;
 
     public event Action? OnStartedSpeaking;
     public event Action? OnFinishedSpeaking;
     public event Action<string>? OnError;
 
-    public TextToSpeechService(IOptions<SpeechSettings> settings, ILogger<TextToSpeechService> logger) {
+    public TextToSpeechService(IConfiguration configuration, ILogger<TextToSpeechService> logger) {
         _logger = logger;
-        _speechSettings = settings.Value;
+        _configuration = configuration;
+        _targetVoiceName = _configuration.GetSection("TTSSettings").Get<TTSSettings>()!.VoiceName;
 
         InitializeSynthesizer();
         ConfigureRussianVoice();
@@ -30,8 +30,8 @@ public class TextToSpeechService : IDisposable {
         _synthesizer?.Dispose();
         _synthesizer = new SpeechSynthesizer();
         _synthesizer.SetOutputToDefaultAudioDevice();
-        _synthesizer.Rate = _speechSettings.TtsRate;
-        _synthesizer.Volume = _speechSettings.TtsVolume;
+        _synthesizer.Rate = _configuration.GetSection("TTSSettings").Get<TTSSettings>()!.TtsRate;
+        _synthesizer.Volume = _configuration.GetSection("TTSSettings").Get<TTSSettings>()!.TtsVolume;
 
         _synthesizer.SpeakStarted += (s, e) => {
             _isSpeaking = true;
@@ -54,16 +54,16 @@ public class TextToSpeechService : IDisposable {
                 .Where(v => v.VoiceInfo.Culture.Name.StartsWith("ru"))
                 .ToList();
 
-            var targetVoice = russianVoices.FirstOrDefault(v => v.VoiceInfo.Name == TargetVoiceName);
+            var targetVoice = russianVoices.FirstOrDefault(v => v.VoiceInfo.Name == _targetVoiceName);
 
             if (targetVoice != null) {
                 _synthesizer.SelectVoice(targetVoice.VoiceInfo.Name);
-                _logger.LogInformation($"TTS: Выбран голос '{TargetVoiceName}'");
+                _logger.LogInformation($"TTS: Выбран голос '{_targetVoiceName}'");
             }
             else if (russianVoices.Any()) {
                 var fallback = russianVoices.First();
                 _synthesizer.SelectVoice(fallback.VoiceInfo.Name);
-                _logger.LogWarning($"TTS: {TargetVoiceName} не найден. Выбран '{fallback.VoiceInfo.Name}'");
+                _logger.LogWarning($"TTS: {_targetVoiceName} не найден. Выбран '{fallback.VoiceInfo.Name}'");
             }
         }
         catch (Exception ex) {

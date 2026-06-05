@@ -2,7 +2,7 @@
 
 namespace Jarvis.Models;
 
-internal class OllamaEmbeddingResponse {
+public class OllamaEmbeddingResponse {
     [JsonPropertyName("embedding")]
     public float[] Embedding { get; set; } = [];
 }
