@@ -115,7 +115,6 @@ public class ReminderService : IDisposable
                 SaveReminders();
         }
 
-        // Озвучиваем НЕ ДОЖИДАЯСЬ (fire and forget)
         foreach (var msg in messagesToSpeak)
         {
             _ = Task.Run(async () => await _tts.SpeakAsync(msg));

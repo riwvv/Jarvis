@@ -15,7 +15,6 @@ namespace Jarvis.ViewModels
         private readonly SpeechToTextService _speechToTextService;
         private readonly CommunicationAiService _communicationAiService;
         private readonly TextToSpeechService _textToSpeechService;
-        //private readonly ReminderPlugin _reminderPlugin;
 
         public MainViewModel(SpeechToTextService speechToTextService, CommunicationAiService communicationAiService, TextToSpeechService textToSpeechService, ILogger<MainViewModel> logger)
         {
@@ -24,7 +23,6 @@ namespace Jarvis.ViewModels
             _speechToTextService = speechToTextService;
             _communicationAiService = communicationAiService;
             _textToSpeechService = textToSpeechService;
-            //_reminderPlugin = reminderPlugin;
 
             _textToSpeechService.OnStartedSpeaking += () => IsSpeaking = true; // начал говорить
             _textToSpeechService.OnFinishedSpeaking += () => IsSpeaking = false; // закончил говорить

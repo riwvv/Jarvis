@@ -45,8 +45,6 @@ public static class SemanticKernelExtensions {
         builder.Plugins.AddFromType<SystemCommandPlugin>();
         builder.Plugins.AddFromType<PrankPlugin>();
 
-        //builder.Plugins.AddFromType<ReminderPlugin>();
-
         var reminderPlugin = sp.GetRequiredService<ReminderPlugin>();
         builder.Plugins.AddFromObject(reminderPlugin);
 
