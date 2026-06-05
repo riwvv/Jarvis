@@ -1,12 +1,12 @@
-﻿using Jarvis.Configuration;
+﻿using MessageBox = System.Windows.MessageBox;
+using Timer = System.Threading.Timer;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using NAudio.Wave;
 using System.IO;
 using System.Windows;
+using NAudio.Wave;
 using Vosk;
-using MessageBox = System.Windows.MessageBox;
-using Timer = System.Threading.Timer;
+using Jarvis.Configuration;
 
 namespace Jarvis.Services {
     public class SpeechToTextService : IDisposable {
@@ -163,7 +163,7 @@ namespace Jarvis.Services {
         }
 
         private void OnAudioDataAvailable(object? sender, WaveInEventArgs e) {
-            lock (_lockObject) 
+            lock (_lockObject)
                 ProcessAudioData(e.Buffer, e.BytesRecorded);
         }
 

@@ -1,9 +1,9 @@
-﻿using Jarvis.Models;
-using Microsoft.Extensions.Logging;
-using RAGSharp.Embeddings;
+﻿using Microsoft.Extensions.Logging;
 using System.Net.Http;
 using System.Text;
 using System.Text.Json;
+using RAGSharp.Embeddings;
+using Jarvis.Models;
 
 namespace Jarvis.Services;
 
@@ -62,7 +62,5 @@ public class OllamaEmbeddingClient : IEmbeddingClient, IDisposable {
         return results;
     }
 
-    public void Dispose() {
-        _httpClient?.Dispose();
-    }
+    public void Dispose() => _httpClient?.Dispose();
 }

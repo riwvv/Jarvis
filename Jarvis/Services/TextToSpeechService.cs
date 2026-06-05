@@ -1,7 +1,7 @@
-﻿using Microsoft.Extensions.Logging;
+﻿using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
 using System.Speech.Synthesis;
 using Jarvis.Configuration;
-using Microsoft.Extensions.Configuration;
 
 namespace Jarvis.Services;
 

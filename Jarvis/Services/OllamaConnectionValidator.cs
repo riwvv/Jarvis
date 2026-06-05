@@ -1,7 +1,7 @@
-﻿using System.Windows;
+﻿using MessageBox = System.Windows.MessageBox;
+using System.Windows;
 using Serilog;
 using Jarvis.Interfaces;
-using MessageBox = System.Windows.MessageBox;
 
 namespace Jarvis.Services;
 

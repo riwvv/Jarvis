@@ -1,14 +1,14 @@
-﻿using Jarvis.Configuration;
+﻿using Application = System.Windows.Application;
+using MessageBox = System.Windows.MessageBox;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using System.Speech.Synthesis;
 using System.ComponentModel;
 using System.Diagnostics;
-using System.IO;
-using System.Speech.Synthesis;
 using System.Windows;
-using Application = System.Windows.Application;
-using MessageBox = System.Windows.MessageBox;
+using System.IO;
+using Jarvis.Configuration;
 
 namespace Jarvis.Services;
 

@@ -1,8 +1,8 @@
-﻿using Jarvis.Interfaces;
+﻿using Microsoft.SemanticKernel.Connectors.OpenAI;
+using Microsoft.SemanticKernel.ChatCompletion;
 using Microsoft.Extensions.Logging;
 using Microsoft.SemanticKernel;
-using Microsoft.SemanticKernel.ChatCompletion;
-using Microsoft.SemanticKernel.Connectors.OpenAI;
+using Jarvis.Interfaces;
 
 namespace Jarvis.Services;
 
@@ -97,8 +97,7 @@ public class CommunicationAiService : IDisposable {
                 var query = userQuery;
                 var resp = responseContent;
 
-                _ = Task.Run(async () =>
-                {
+                _ = Task.Run(async () => {
                     try {
                         await _memoryService.SaveMemoryAsync(query, resp);
                         _logger.LogDebug("Автосохранение: {Query}", query.Length > 50 ? query[..50] + "..." : query);

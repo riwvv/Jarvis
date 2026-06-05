@@ -1,4 +1,5 @@
 ﻿using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Configuration;
 using RAGSharp.Embeddings.Tokenizers;
 using RAGSharp.IO;
 using RAGSharp.RAG;
@@ -9,7 +10,6 @@ using System.Text;
 using System.Text.Json;
 using Jarvis.Interfaces;
 using Jarvis.Models;
-using Microsoft.Extensions.Configuration;
 using Jarvis.Configuration;
 
 namespace Jarvis.Services;
