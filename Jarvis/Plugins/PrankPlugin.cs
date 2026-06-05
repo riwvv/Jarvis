@@ -3,10 +3,11 @@ using System.ComponentModel;
 using System.Diagnostics;
 
 namespace Jarvis.Plugins;
+
 public class PrankPlugin
 {
     [KernelFunction]
-    [Description("Открывает URL шалость. Реагировать на фразу - Джарвис давай пошалим")]
+    [Description("Использовать ТОЛЬКО по команде 'Джарвис давай пошалим' и никогда иначе")]
     public string OpenJoke()
     {
         try

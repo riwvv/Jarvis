@@ -23,6 +23,7 @@ public class CommunicationAiService : IDisposable {
         - ApplicationPlugin: запуск программ и игр
         - BrowserPlugin: открытие сайтов
         - SystemAudioPlugin: управление громкостью
+        - MediaPlayerPlugin: усправление музыкой (пауза/далее, следующая/предыдущая, информация о текущей)
         - SystemCommandPlugin: системные команды (свернуть окна, блокировка, выключение)
         - FilePlugin: работа с файлами
         - PrankPlugin: шутки
@@ -37,7 +38,7 @@ public class CommunicationAiService : IDisposable {
         3. Получаешь результат 'Открыто: https://youtube.com'
         4. Ты вызываешь RagPlugin.SaveToMemory с параметрами:
            - userAction: 'открой ютуб'
-           - assistantResponse: 'DONE Открыл YouTube'
+           - assistantResponse: 'DONE: Открыл YouTube'
 
         ## КОГДА НУЖНО СОХРАНЯТЬ:
         ✅ Команда выполнена успешно → сохранить
@@ -50,7 +51,9 @@ public class CommunicationAiService : IDisposable {
         - 'как меня зовут' → SearchMemory
         - 'что я делал вчера' → SearchMemory
 
-        Формат ответа: DONE/WARNING/ERROR + сообщение
+        Формат ответа: DONE:/WARNING:/ERROR: + сообщение
+
+        Так же в ответе никогда не используй эмодзи и старайся сделать ответ кратким. Ответ может быть развёрнутым только если пользователь попросил о чём то рассказать.
 
         Запомни: ЛЮБОЕ успешное действие должно быть сохранено в память через SaveToMemory!";
 
