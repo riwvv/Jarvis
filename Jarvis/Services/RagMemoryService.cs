@@ -14,10 +14,14 @@ namespace Jarvis.Services;
 
 public class RagMemoryService : IRagMemoryService {
     private readonly ILogger<RagMemoryService> _logger;
-    private readonly string _vectorPath;
     private readonly OllamaEmbeddingClient _embeddingClient;
     private readonly FileVectorStore _store;
     private readonly RagRetriever _retriever;
+    private readonly string _vectorPath;
+
+    private static readonly JsonSerializerOptions _jsonOptions = new() {
+        PropertyNameCaseInsensitive = true
+    };
 
     public RagMemoryService(ILogger<RagMemoryService> logger) {
         _logger = logger;
@@ -34,7 +38,7 @@ public class RagMemoryService : IRagMemoryService {
 
         _retriever = new RagRetriever(embeddings: _embeddingClient, store: _store, splitter: splitter);
 
-        _ = Task.Run(() => LoadExistingVectors());
+        _ = Task.Run(() => LoadExistingVectorsAsync());
 
         _logger.LogInformation("RagMemoryService инициализирован");
     }
@@ -98,25 +102,7 @@ public class RagMemoryService : IRagMemoryService {
         }
     }
 
-    public async Task<string?> FindCommandPatternAsync(string command, float minSimilarity = 0.75F) {
-        try {
-            var results = await _retriever.Search(command, topK: 3);
-            var goodResult = results.FirstOrDefault(r => r.Score >= minSimilarity);
-
-            if (goodResult != null) {
-                _logger.LogDebug($"Найден паттерн команды (score={goodResult.Score:F2})");
-                return goodResult.Content;
-            }
-
-            return null;
-        }
-        catch (Exception ex) {
-            _logger.LogError(ex, "Ошибка при поиске паттерна команды");
-            return null;
-        }
-    }
-
-    private async Task LoadExistingVectors() {
+    private async Task LoadExistingVectorsAsync() {
         try {
             if (!Directory.Exists(_vectorPath)) {
                 _logger.LogDebug("Папка векторов не существует, пустая память");
@@ -130,7 +116,7 @@ public class RagMemoryService : IRagMemoryService {
             }
 
             var json = await File.ReadAllTextAsync(kbFilePath);
-            var documents = JsonSerializer.Deserialize<List<VectorDocument>>(json);
+            var documents = JsonSerializer.Deserialize<List<VectorDocument>>(json, _jsonOptions);
 
             if (documents != null && documents.Any()) {
                 foreach (var doc in documents) {
@@ -149,7 +135,5 @@ public class RagMemoryService : IRagMemoryService {
         }
     }
 
-    public void Dispose() {
-        _embeddingClient?.Dispose();
-    }
+    public void Dispose() => _embeddingClient?.Dispose();
 }
