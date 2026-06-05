@@ -29,6 +29,7 @@ public static class SemanticKernelExtensions {
         services.AddTransient<FilePlugin>();
         services.AddTransient<SystemCommandPlugin>();
         services.AddTransient<PrankPlugin>();
+        services.AddTransient<MediaPlayerPlugin>();
 
         return services;
     }
