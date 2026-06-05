@@ -3,6 +3,7 @@ using MessageBox = System.Windows.MessageBox;
 using Microsoft.Extensions.Logging;
 using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
+using Jarvis.Plugins;
 using Jarvis.Services;
 
 namespace Jarvis.ViewModels;

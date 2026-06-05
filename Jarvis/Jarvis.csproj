@@ -31,11 +31,11 @@
 	</ItemGroup>
 
 	<ItemGroup>
-	  <AdditionalFiles Remove="app.manifest" />
+	  <Content Remove="Models\ReminderItem.cs" />
 	</ItemGroup>
 
 	<ItemGroup>
-	  <Content Remove="Models\VectorDocument.cs" />
+		<Content Remove="Models\VectorDocument.cs" />
 	</ItemGroup>
 
 	<ItemGroup>
