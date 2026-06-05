@@ -1,4 +1,6 @@
-﻿using Microsoft.Extensions.Hosting;
+﻿using Jarvis.Configuration;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using System.ComponentModel;
 using System.Diagnostics;
@@ -10,10 +12,22 @@ using MessageBox = System.Windows.MessageBox;
 
 namespace Jarvis.Services;
 
-public class VoiceInstallerService(ILogger<VoiceInstallerService> _logger) : IHostedService {
-    private const string TargetVoiceName = "Pavel";
-    private const string InstallerFileName = "RHVoice-voice-Russian-Pavel-v4.0.2017.22-setup.exe";
-    private const string InstallerSubPath = "Resources";
+public class VoiceInstallerService : IHostedService {
+    private readonly string TargetVoiceName;
+    private readonly string InstallerFileName;
+    private readonly string InstallerSubPath;
+    private readonly ILogger<VoiceInstallerService> _logger;
+    private readonly IConfiguration _configuration;
+
+    public VoiceInstallerService(IConfiguration configuration, ILogger<VoiceInstallerService> logger) {
+        _logger = logger;
+        _configuration = configuration;
+
+        TargetVoiceName = _configuration.GetSection("TTSSettings").Get<TTSSettings>()!.VoiceName;
+        InstallerFileName = _configuration.GetSection("TTSSettings").Get<TTSSettings>()!.InstallerFileName;
+        InstallerSubPath = _configuration.GetSection("TTSSettings").Get<TTSSettings>()!.InstallerSubPath;
+
+    }
 
     public async Task StartAsync(CancellationToken cancellationToken) {
         _logger.LogInformation("VoiceInstallerService: проверка голоса...");

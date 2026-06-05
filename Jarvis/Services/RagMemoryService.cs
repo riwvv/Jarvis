@@ -9,11 +9,15 @@ using System.Text;
 using System.Text.Json;
 using Jarvis.Interfaces;
 using Jarvis.Models;
+using Microsoft.Extensions.Configuration;
+using Jarvis.Configuration;
 
 namespace Jarvis.Services;
 
 public class RagMemoryService : IRagMemoryService {
     private readonly ILogger<RagMemoryService> _logger;
+    private readonly string _embeddingId;
+    private readonly string _embeddingEndpoint;
     private readonly OllamaEmbeddingClient _embeddingClient;
     private readonly FileVectorStore _store;
     private readonly RagRetriever _retriever;
@@ -23,14 +27,17 @@ public class RagMemoryService : IRagMemoryService {
         PropertyNameCaseInsensitive = true
     };
 
-    public RagMemoryService(ILogger<RagMemoryService> logger) {
+    public RagMemoryService(IConfiguration configuration, ILogger<RagMemoryService> logger) {
         _logger = logger;
+
+        _embeddingId = configuration.GetSection("AISettings").Get<AISettings>()!.EmbeddingModelId;
+        _embeddingEndpoint = configuration.GetSection("AISettings").Get<AISettings>()!.EmbeddingEndpoint;
 
         var appData = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Jarvis");
         Directory.CreateDirectory(appData);
         _vectorPath = Path.Combine(appData, "vectors.json");
 
-        _embeddingClient = new OllamaEmbeddingClient("qwen3-embedding:4b", logger: _logger);
+        _embeddingClient = new OllamaEmbeddingClient(_embeddingId, _embeddingEndpoint, logger: _logger);
         _store = new FileVectorStore(_vectorPath);
 
         var tokenizer = new SharpTokenTokenizer("gpt-4");

@@ -53,9 +53,9 @@ namespace Jarvis.Services {
         private System.Threading.Timer? _inactivityTimer;
         private const int INACTIVITY_TIMEOUT_MS = 10000;
         private readonly ILogger<SpeechToTextService> _logger;
-        private readonly SpeechSettings _settings;
+        private readonly STTSettings _settings;
 
-        public SpeechToTextService(TrayService trayService, IOptions<SpeechSettings> settings, ILogger<SpeechToTextService> logger) {
+        public SpeechToTextService(TrayService trayService, IOptions<STTSettings> settings, ILogger<SpeechToTextService> logger) {
             _logger = logger;
             _settings = settings.Value;
             OnWakeWordDetected += trayService.ShowAsOverlay;
