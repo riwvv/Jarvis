@@ -1,9 +1,9 @@
-﻿using Jarvis.Models;
-using Microsoft.Extensions.Logging;
-using RAGSharp.Embeddings;
+﻿using Microsoft.Extensions.Logging;
 using System.Net.Http;
 using System.Text;
 using System.Text.Json;
+using RAGSharp.Embeddings;
+using Jarvis.Models;
 
 namespace Jarvis.Services;
 
@@ -13,7 +13,7 @@ public class OllamaEmbeddingClient : IEmbeddingClient, IDisposable {
     private readonly string _endpoint;
     private readonly ILogger? _logger;
 
-    public OllamaEmbeddingClient(string defaultModel = "qwen3-embedding:4b", string endpoint = "http://localhost:11434", ILogger? logger = null) {
+    public OllamaEmbeddingClient(string defaultModel, string endpoint, ILogger? logger = null) {
         _defaultModel = defaultModel;
         _endpoint = endpoint;
         _logger = logger;
@@ -62,7 +62,5 @@ public class OllamaEmbeddingClient : IEmbeddingClient, IDisposable {
         return results;
     }
 
-    public void Dispose() {
-        _httpClient?.Dispose();
-    }
+    public void Dispose() => _httpClient?.Dispose();
 }

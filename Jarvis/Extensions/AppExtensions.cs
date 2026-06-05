@@ -11,7 +11,7 @@ namespace Jarvis.Extensions;
 public static class AppExtensions {
     public static IServiceCollection AddConfigure(this IServiceCollection services, IConfiguration configuration) {
         services.Configure<AISettings>(configuration.GetSection("AISettings"));
-        services.Configure<SpeechSettings>(configuration.GetSection("SpeechSettings"));
+        services.Configure<STTSettings>(configuration.GetSection("SpeechSettings"));
 
         return services;
     }

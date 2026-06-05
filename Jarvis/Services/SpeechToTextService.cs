@@ -1,11 +1,12 @@
-﻿using Jarvis.Configuration;
+﻿using MessageBox = System.Windows.MessageBox;
+using Timer = System.Threading.Timer;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using NAudio.Wave;
 using System.IO;
 using System.Windows;
-using System.Windows.Threading;
+using NAudio.Wave;
 using Vosk;
+using Jarvis.Configuration;
 
 namespace Jarvis.Services {
     public class SpeechToTextService : IDisposable {
@@ -49,12 +50,12 @@ namespace Jarvis.Services {
         private readonly object _micLock = new();
 
         // Таймаут бездействия (10 секунд)
-        private Timer? _inactivityTimer;
+        private System.Threading.Timer? _inactivityTimer;
         private const int INACTIVITY_TIMEOUT_MS = 10000;
         private readonly ILogger<SpeechToTextService> _logger;
-        private readonly SpeechSettings _settings;
+        private readonly STTSettings _settings;
 
-        public SpeechToTextService(TrayService trayService, IOptions<SpeechSettings> settings, ILogger<SpeechToTextService> logger) {
+        public SpeechToTextService(TrayService trayService, IOptions<STTSettings> settings, ILogger<SpeechToTextService> logger) {
             _logger = logger;
             _settings = settings.Value;
             OnWakeWordDetected += trayService.ShowAsOverlay;
@@ -162,7 +163,7 @@ namespace Jarvis.Services {
         }
 
         private void OnAudioDataAvailable(object? sender, WaveInEventArgs e) {
-            lock (_lockObject) 
+            lock (_lockObject)
                 ProcessAudioData(e.Buffer, e.BytesRecorded);
         }
 
