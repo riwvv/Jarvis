@@ -21,7 +21,8 @@ public static class SemanticKernelExtensions {
 
         services.AddSingleton(sp => {
             var ragMemory = sp.GetRequiredService<IRagMemoryService>();
-            return BuildKernel(aiSettings, ragMemory, sp);
+            var reminderService = sp.GetRequiredService<ReminderService>();
+            return BuildKernel(aiSettings, ragMemory, reminderService, sp);
         });
 
         services.AddTransient<ApplicationPlugin>();
@@ -35,7 +36,7 @@ public static class SemanticKernelExtensions {
         return services;
     }
 
-    private static Kernel BuildKernel(AISettings aiSettings, IRagMemoryService ragMemory, IServiceProvider sp) {
+    private static Kernel BuildKernel(AISettings aiSettings, IRagMemoryService ragMemory, ReminderService reminderService, IServiceProvider sp) {
         var builder = Kernel.CreateBuilder();
 
         builder.Plugins.AddFromType<ApplicationPlugin>();
@@ -46,8 +47,8 @@ public static class SemanticKernelExtensions {
         builder.Plugins.AddFromType<MediaPlayerPlugin>();
         builder.Plugins.AddFromType<PrankPlugin>();
 
-        var reminderPlugin = sp.GetRequiredService<ReminderPlugin>();
-        builder.Plugins.AddFromObject(reminderPlugin);
+       // var reminderPlugin = sp.GetRequiredService<ReminderPlugin>();
+        builder.Plugins.AddFromObject(new ReminderPlugin(reminderService));
 
         builder.Plugins.AddFromObject(new RagPlugin(ragMemory));
 
