@@ -1,5 +1,6 @@
 ﻿using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
 using System.Speech.Synthesis;
@@ -10,8 +11,8 @@ using MessageBox = System.Windows.MessageBox;
 namespace Jarvis.Services;
 
 public class VoiceInstallerService(ILogger<VoiceInstallerService> _logger) : IHostedService {
-    private const string TargetVoiceName = "Evgeniy-Rus";
-    private const string InstallerFileName = "RHVoice-voice-Russian-Evgeniy-Rus-v4.0.2017.22-setup.exe";
+    private const string TargetVoiceName = "Pavel";
+    private const string InstallerFileName = "RHVoice-voice-Russian-Pavel-v4.0.2017.22-setup.exe";
     private const string InstallerSubPath = "Resources";
 
     public async Task StartAsync(CancellationToken cancellationToken) {
@@ -50,6 +51,8 @@ public class VoiceInstallerService(ILogger<VoiceInstallerService> _logger) : IHo
         }
 
         try {
+            UnblockFile(installerPath);
+
             var processInfo = new ProcessStartInfo {
                 FileName = installerPath,
                 Arguments = "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART",
@@ -57,15 +60,18 @@ public class VoiceInstallerService(ILogger<VoiceInstallerService> _logger) : IHo
                 Verb = "runas"
             };
 
-            _logger.LogInformation("Запуск установщика...");
+            _logger.LogInformation("Запуск установщика с правами администратора...");
 
             using var process = Process.Start(processInfo);
-            if (process == null) return;
+            if (process == null) {
+                _logger.LogError("Не удалось запустить процесс установки");
+                return;
+            }
 
             await process.WaitForExitAsync(cancellationToken);
 
             if (process.ExitCode == 0) {
-                _logger.LogInformation("Голос Evgeniy-Rus успешно установлен!");
+                _logger.LogInformation($"Голос {TargetVoiceName} успешно установлен!");
                 ShowNotificationAndExit();
             }
             else {
@@ -73,9 +79,34 @@ public class VoiceInstallerService(ILogger<VoiceInstallerService> _logger) : IHo
                 ShowErrorNotification($"Ошибка установки голоса (код: {process.ExitCode})");
             }
         }
+        catch (Win32Exception ex) when (ex.NativeErrorCode == 1223) // 1223 = пользователь нажал "Нет" в UAC
+        {
+            _logger.LogWarning("Пользователь отказал в предоставлении прав администратора");
+            ShowErrorNotification("Для установки голоса требуются права администратора. Пожалуйста, разрешите запуск установщика.");
+        }
+        catch (Win32Exception ex) when (ex.NativeErrorCode == 740) // 740 = недостаточно прав
+        {
+            _logger.LogError(ex, "Недостаточно прав для запуска установщика");
+            ShowErrorNotification("Не удалось получить права администратора. Попробуйте запустить Jarvis от имени администратора.");
+        }
         catch (Exception ex) {
             _logger.LogError(ex, "Ошибка установки");
             ShowErrorNotification($"Ошибка при установке: {ex.Message}");
+        }
+    }
+
+    private void UnblockFile(string filePath) {
+        try {
+            if (!File.Exists(filePath)) return;
+
+            var zoneFile = filePath + ":Zone.Identifier";
+            if (File.Exists(zoneFile)) {
+                File.WriteAllText(zoneFile, "[ZoneTransfer]\r\nZoneId=0\r\n");
+                _logger.LogDebug($"Файл разблокирован: {Path.GetFileName(filePath)}");
+            }
+        }
+        catch (Exception ex) {
+            _logger.LogDebug($"Не удалось разблокировать файл: {ex.Message}");
         }
     }
 
