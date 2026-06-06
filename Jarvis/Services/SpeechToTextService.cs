@@ -64,6 +64,16 @@ namespace Jarvis.Services {
             InitializeMicrophone();
         }
 
+        public void Start() => StartListening();
+
+        public void StopListening() {
+            lock (_micLock) {
+                if (_microphone != null && _isRecording) {
+                    _microphone.StopRecording();
+                }
+            }
+        }
+
         private void InitializeVosk() {
             try {
                 string modelPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, _settings.SttModelPath);
@@ -154,14 +164,6 @@ namespace Jarvis.Services {
             }
         }
 
-        public void StopListening() {
-            lock (_micLock) {
-                if (_microphone != null && _isRecording) {
-                    _microphone.StopRecording();
-                }
-            }
-        }
-
         private void OnAudioDataAvailable(object? sender, WaveInEventArgs e) {
             lock (_lockObject)
                 ProcessAudioData(e.Buffer, e.BytesRecorded);
@@ -221,11 +223,9 @@ namespace Jarvis.Services {
                 string partialResult = _commandRecognizer.PartialResult();
                 string partialText = ExtractPartialText(partialResult);
 
-#if DEBUG
                 if (!string.IsNullOrWhiteSpace(partialText)) {
                     _logger.LogDebug($"Частичный результат: {partialText}");
                 }
-#endif
             }
         }
 
@@ -297,8 +297,6 @@ namespace Jarvis.Services {
 
             return _wakeWordVariants.Any(variant => NormalizeText(variant) == normalizedText);
         }
-
-        public void Start() => StartListening();
 
         public void Dispose() {
             lock (_micLock)

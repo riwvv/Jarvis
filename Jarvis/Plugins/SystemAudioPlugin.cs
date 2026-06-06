@@ -28,7 +28,7 @@ public class SystemAudioPlugin {
             var device = devices.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
             device.AudioEndpointVolume.Mute = true;
 
-            return "Done";
+            return "Выключил звук";
         }
         catch {
             return "Error";

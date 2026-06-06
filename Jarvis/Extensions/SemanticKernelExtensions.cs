@@ -22,7 +22,7 @@ public static class SemanticKernelExtensions {
         services.AddSingleton(sp => {
             var ragMemory = sp.GetRequiredService<IRagMemoryService>();
             var reminderService = sp.GetRequiredService<ReminderService>();
-            return BuildKernel(aiSettings, ragMemory, reminderService, sp);
+            return BuildKernel(aiSettings, ragMemory, reminderService);
         });
 
         services.AddTransient<ApplicationPlugin>();
@@ -36,7 +36,7 @@ public static class SemanticKernelExtensions {
         return services;
     }
 
-    private static Kernel BuildKernel(AISettings aiSettings, IRagMemoryService ragMemory, ReminderService reminderService, IServiceProvider sp) {
+    private static Kernel BuildKernel(AISettings aiSettings, IRagMemoryService ragMemory, ReminderService reminderService) {
         var builder = Kernel.CreateBuilder();
 
         builder.Plugins.AddFromType<ApplicationPlugin>();

@@ -6,12 +6,12 @@ using Jarvis.Configuration;
 namespace Jarvis.Services;
 
 public class TextToSpeechService : IDisposable {
-    private SpeechSynthesizer? _synthesizer;
-    private bool _isSpeaking = false;
-    private readonly SemaphoreSlim _speakSemaphore = new(1, 1);
     private readonly ILogger<TextToSpeechService> _logger;
     private readonly IConfiguration _configuration;
+    private readonly SemaphoreSlim _speakSemaphore = new(1, 1);
     private readonly string _targetVoiceName;
+    private SpeechSynthesizer? _synthesizer;
+    private bool _isSpeaking = false;
 
     public event Action? OnStartedSpeaking;
     public event Action? OnFinishedSpeaking;

@@ -15,7 +15,7 @@ public class BrowserPlugin {
                 url = "https://" + url;
 
             Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
-            return $"Открыто: {url}";
+            return $"Открыто";
         }
         catch (Exception ex) {
             return $"Ошибка: {ex.Message}";

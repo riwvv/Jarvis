@@ -35,8 +35,7 @@ public class ApplicationPlugin {
 
     [KernelFunction]
     [Description("Запускает приложение по названию. Сканирует реестр один раз при первом обращении")]
-    public async Task<string> LaunchApp(
-        [Description("Название приложения: Steam, Telegram, Google Chrome, Visual Studio")] string appName) {
+    public async Task<string> LaunchApp([Description("Название приложения: Steam, Telegram, Google Chrome, Visual Studio")] string appName) {
         if (!_isLoaded)
             await ScanSystemAsync();
 
@@ -72,7 +71,7 @@ public class ApplicationPlugin {
             string filePath = Path.Combine(desktop, $"Список приложений {DateTime.Now:yyyy-MM-dd}.txt");
 
             await File.WriteAllTextAsync(filePath, report, Encoding.UTF8);
-            return $"Файл создан: {filePath}\nНайдено: {_installedApps.Count} приложений";
+            return $"Файл создан на рабочем столе";
         }
         catch (Exception ex) {
             return $"Ошибка создания файла: {ex.Message}";
@@ -207,8 +206,7 @@ public class ApplicationPlugin {
 
     [KernelFunction]
     [Description("Запускает игру из Steam по точному названию")]
-    public async Task<string> LaunchSteamGame(
-    [Description("Точное название игры на английском, как в Steam: Satisfactory, Counter-Strike 2, Dota 2, Cyberpunk 2077")] string gameName) {
+    public async Task<string> LaunchSteamGame([Description("Точное название игры на английском, как в Steam: Satisfactory, Counter-Strike 2, Dota 2, Cyberpunk 2077")] string gameName) {
         if (!_steamScanned)
             await ScanSteamGamesAsync();
 
