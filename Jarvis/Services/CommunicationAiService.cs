@@ -3,6 +3,7 @@ using Microsoft.SemanticKernel.ChatCompletion;
 using Microsoft.Extensions.Logging;
 using Microsoft.SemanticKernel;
 using Jarvis.Interfaces;
+using Jarvis.Plugins;
 
 namespace Jarvis.Services;
 
@@ -18,6 +19,8 @@ public class CommunicationAiService : IDisposable {
     private readonly OpenAIPromptExecutionSettings _settings;
     private readonly SemaphoreSlim _semaphore = new(1, 1);
     private readonly TrayService? _trayService;
+    private readonly Dictionary<string, Func<string, Task<string>>> _fastCommands;
+
 
     private readonly string _systemPrompt = @"Ты — Джарвис, голосовой ассистент для Windows.
 
@@ -30,6 +33,7 @@ public class CommunicationAiService : IDisposable {
         - FilePlugin: работа с файлами
         - PrankPlugin: шутки
         - RagPlugin: долговременная память (только SearchMemory)
+        - ReminderPlugin: создание/удаление временных и переодических напоминаний
 
         ## КОГДА НУЖНО ИСКАТЬ В ПАМЯТИ:
         - 'о чем я тебя просил' → SearchMemory
@@ -49,7 +53,7 @@ public class CommunicationAiService : IDisposable {
         OnResult += (status) => _trayService.HideOverlayAfterCommand();
 
         _chat = _kernel.GetRequiredService<IChatCompletionService>();
-        _history = new();
+        _history = [];
         _settings = new OpenAIPromptExecutionSettings {
             FunctionChoiceBehavior = FunctionChoiceBehavior.Auto(),
             Temperature = 0.45,
@@ -60,6 +64,106 @@ public class CommunicationAiService : IDisposable {
         };
 
         _history.AddSystemMessage(_systemPrompt);
+
+        _fastCommands = new Dictionary<string, Func<string, Task<string>>>(StringComparer.OrdinalIgnoreCase) {
+            ["сверни все окна"] = async (_) => {
+                var function = _kernel.Plugins.GetFunction("SystemCommandPlugin", "MinimizeAllWindows");
+                var result = await _kernel.InvokeAsync(function);
+                return result.GetValue<string>() ?? "Окна свернуты";
+            },
+
+            ["открой диспетчер задач"] = async (_) => {
+                var function = _kernel.Plugins.GetFunction("SystemCommandPlugin", "OpenTaskManager");
+                var result = await _kernel.InvokeAsync(function);
+                return result.GetValue<string>() ?? "Диспетчер задач открыт";
+            },
+
+            ["выключи компьютер"] = async (_) => {
+                var function = _kernel.Plugins.GetFunction("SystemCommandPlugin", "Shutdown");
+                var result = await _kernel.InvokeAsync(function);
+                return result.GetValue<string>() ?? "Компьютер выключается";
+            },
+
+            ["перезагрузи компьютер"] = async (_) => {
+                var function = _kernel.Plugins.GetFunction("SystemCommandPlugin", "Restart");
+                var result = await _kernel.InvokeAsync(function);
+                return result.GetValue<string>() ?? "Компьютер перезагружается";
+            },
+
+            ["отмени выключение"] = async (_) => {
+                var function = _kernel.Plugins.GetFunction("SystemCommandPlugin", "CancelShutdown");
+                var result = await _kernel.InvokeAsync(function);
+                return result.GetValue<string>() ?? "Выключение отменено";
+            },
+
+            ["заблокируй экран"] = async (_) => {
+                var function = _kernel.Plugins.GetFunction("SystemCommandPlugin", "LockScreen");
+                var result = await _kernel.InvokeAsync(function);
+                return result.GetValue<string>() ?? "Экран заблокирован";
+            },
+
+            ["создай список приложений"] = async (_) => {
+                var function = _kernel.Plugins.GetFunction("ApplicationPlugin", "CreateAppListFile");
+                var result = await _kernel.InvokeAsync(function);
+                return result.GetValue<string>() ?? "Список приложений создан";
+            },
+
+            ["открой гугл"] = async (_) => {
+                var function = _kernel.Plugins.GetFunction("BrowserPlugin", "OpenUrl");
+                var args = new KernelArguments { ["url"] = "https://google.com" };
+                var result = await _kernel.InvokeAsync(function, args);
+                return result.GetValue<string>() ?? "Google открыт";
+            },
+
+            ["открой ютуб"] = async (_) => {
+                var function = _kernel.Plugins.GetFunction("BrowserPlugin", "OpenUrl");
+                var args = new KernelArguments { ["url"] = "https://youtube.com" };
+                var result = await _kernel.InvokeAsync(function, args);
+                return result.GetValue<string>() ?? "YouTube открыт";
+            },
+
+            ["что играет"] = async (_) => {
+                var function = _kernel.Plugins.GetFunction("MediaPlayerPlugin", "GetCurrentTrackInfo");
+                var result = await _kernel.InvokeAsync(function);
+                return result.GetValue<string>() ?? "Ничего не играет";
+            },
+
+            ["продолжи"] = async (_) => {
+                var function = _kernel.Plugins.GetFunction("MediaPlayerPlugin", "PlayPause");
+                var result = await _kernel.InvokeAsync(function);
+                return result.GetValue<string>() ?? "Воспроизведение возобновлено";
+            },
+
+            ["дальше"] = async (_) => {
+                var function = _kernel.Plugins.GetFunction("MediaPlayerPlugin", "NextTrack");
+                var result = await _kernel.InvokeAsync(function);
+                return result.GetValue<string>() ?? "Следующий трек";
+            },
+
+            ["предыдущую"] = async (_) => {
+                var function = _kernel.Plugins.GetFunction("MediaPlayerPlugin", "PreviousTrack");
+                var result = await _kernel.InvokeAsync(function);
+                return result.GetValue<string>() ?? "Предыдущий трек";
+            },
+
+            ["пауза"] = async (_) => {
+                var function = _kernel.Plugins.GetFunction("MediaPlayerPlugin", "Stop");
+                var result = await _kernel.InvokeAsync(function);
+                return result.GetValue<string>() ?? "Пауза";
+            },
+
+            ["давай пошалим"] = async (_) => {
+                var function = _kernel.Plugins.GetFunction("PrankPlugin", "OpenJoke");
+                var result = await _kernel.InvokeAsync(function);
+                return result.GetValue<string>() ?? ":)";
+            },
+
+            ["выключи звук"] = async (_) => {
+                var function = _kernel.Plugins.GetFunction("SystemAudioPlugin", "VolumeTurnOff");
+                var result = await _kernel.InvokeAsync(function);
+                return result.GetValue<string>() ?? "Звук выключен";
+            }
+        };
     }
 
     public async Task<string?> GetRequestUser(string userQuery, CancellationToken cancellationToken = default) {
@@ -77,6 +181,25 @@ public class CommunicationAiService : IDisposable {
             _trayService?.CommandReceived();
             OnExecute?.Invoke("EXECUTE");
             _logger.LogInformation($"Запрос: {userQuery}");
+
+            foreach (var (key, action) in _fastCommands) {
+                if (userQuery.Equals(key, StringComparison.OrdinalIgnoreCase)) {
+                    _logger.LogInformation($"Быстрая команда: {key}");
+                    var result = await action(userQuery);
+                    OnResult?.Invoke("DONE");
+                    
+                    _ = Task.Run(async () => {
+                        try {
+                            await _memoryService.SaveMemoryAsync(userQuery, result);
+                        }
+                        catch (Exception ex) {
+                            _logger.LogDebug($"Автосохранение пропущено: {ex.Message}");
+                        }
+                    });
+
+                    return $"DONE: {result}";
+                }
+            }
 
             var currentHistory = new ChatHistory();
             foreach (var msg in _history)

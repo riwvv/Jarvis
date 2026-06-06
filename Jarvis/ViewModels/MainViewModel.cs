@@ -1,9 +1,7 @@
 ﻿using Application = System.Windows.Application;
 using MessageBox = System.Windows.MessageBox;
-using Microsoft.Extensions.Logging;
 using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
-using Jarvis.Plugins;
 using Jarvis.Services;
 
 namespace Jarvis.ViewModels;
@@ -12,26 +10,21 @@ public partial class MainViewModel : ObservableObject, IDisposable {
     [ObservableProperty] private string _state = "SLEEP";
     [ObservableProperty] private bool _isSpeaking = false; // используется для речевого синтезатора
 
-    private readonly ILogger<MainViewModel> _logger;
     private readonly SpeechToTextService _speechToTextService;
     private readonly CommunicationAiService _communicationAiService;
     private readonly TextToSpeechService _textToSpeechService;
 
-    public MainViewModel(SpeechToTextService speechToTextService, CommunicationAiService communicationAiService, TextToSpeechService textToSpeechService, ILogger<MainViewModel> logger) {
-        _logger = logger;
-
+    public MainViewModel(SpeechToTextService speechToTextService, CommunicationAiService communicationAiService, TextToSpeechService textToSpeechService) {
         _speechToTextService = speechToTextService;
         _communicationAiService = communicationAiService;
         _textToSpeechService = textToSpeechService;
 
         _textToSpeechService.OnStartedSpeaking += () => IsSpeaking = true; // начал говорить
-        _textToSpeechService.OnFinishedSpeaking += () => IsSpeaking = false; // закончил говорить
-        _textToSpeechService.OnError += (error) => _logger.LogInformation($"TTS Error: {error}"); // пасхалка на случай ошибок 
+        _textToSpeechService.OnFinishedSpeaking += () => IsSpeaking = false; // закончил говорить 
 
         _speechToTextService.OnSpeechRecognized += async (text) => {
             if (string.IsNullOrWhiteSpace(text)) return;
 
-            _logger.LogInformation($"Распознана команда: {text}");
             var response = await _communicationAiService.GetRequestUser(text);
 
             if (!string.IsNullOrEmpty(response)) {
