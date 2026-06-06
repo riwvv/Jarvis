@@ -32,6 +32,7 @@ public static class SemanticKernelExtensions {
         services.AddTransient<SystemCommandPlugin>();
         services.AddTransient<PrankPlugin>();
         services.AddTransient<MediaPlayerPlugin>();
+        services.AddTransient<ClipboardPlugin>();
 
         return services;
     }
@@ -46,6 +47,7 @@ public static class SemanticKernelExtensions {
         builder.Plugins.AddFromType<SystemCommandPlugin>();
         builder.Plugins.AddFromType<MediaPlayerPlugin>();
         builder.Plugins.AddFromType<PrankPlugin>();
+        builder.Plugins.AddFromType<ClipboardPlugin>();
 
         builder.Plugins.AddFromObject(new ReminderPlugin(reminderService));
         builder.Plugins.AddFromObject(new RagPlugin(ragMemory));
