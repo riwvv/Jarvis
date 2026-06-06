@@ -1,7 +1,6 @@
 ﻿namespace Jarvis.Models;
 
-public class ReminderItem
-{
+public class ReminderItem {
     public Guid Id { get; set; } = Guid.NewGuid();
     public string Message { get; set; } = string.Empty;
     public DateTime ScheduledTime { get; set; }
@@ -13,8 +12,7 @@ public class ReminderItem
 
     public ReminderItem() { }
 
-    public ReminderItem(DateTime scheduledTime, string message, bool isRecurring, string? recurringType = null, int? value = null, int hour = 0, int minute = 0)
-    {
+    public ReminderItem(DateTime scheduledTime, string message, bool isRecurring, string? recurringType = null, int? value = null, int hour = 0, int minute = 0) {
         ScheduledTime = scheduledTime;
         Message = message;
         IsRecurring = isRecurring;
@@ -26,12 +24,10 @@ public class ReminderItem
 
     public DateTime NextOccurrence => ScheduledTime;
 
-    public void UpdateNextOccurrence()
-    {
+    public void UpdateNextOccurrence() {
         var now = DateTime.Now;
 
-        ScheduledTime = RecurringType switch
-        {
+        ScheduledTime = RecurringType switch {
             "hourly" => now.AddHours(1),
             "daily" => now.AddDays(1),
             "dailyAtTime" => DateTime.Today.AddHours(RecurringHour ?? 0).AddMinutes(RecurringMinute ?? 0),

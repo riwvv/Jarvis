@@ -47,9 +47,7 @@ public static class SemanticKernelExtensions {
         builder.Plugins.AddFromType<MediaPlayerPlugin>();
         builder.Plugins.AddFromType<PrankPlugin>();
 
-       // var reminderPlugin = sp.GetRequiredService<ReminderPlugin>();
         builder.Plugins.AddFromObject(new ReminderPlugin(reminderService));
-
         builder.Plugins.AddFromObject(new RagPlugin(ragMemory));
 
         builder.AddOpenAIChatCompletion(
