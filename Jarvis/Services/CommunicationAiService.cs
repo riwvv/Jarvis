@@ -3,7 +3,6 @@ using Microsoft.SemanticKernel.ChatCompletion;
 using Microsoft.Extensions.Logging;
 using Microsoft.SemanticKernel;
 using Jarvis.Interfaces;
-using Jarvis.Plugins;
 
 namespace Jarvis.Services;
 
@@ -20,9 +19,11 @@ public class CommunicationAiService : IDisposable {
     private readonly SemaphoreSlim _semaphore = new(1, 1);
     private readonly TrayService? _trayService;
     private readonly Dictionary<string, Func<string, Task<string>>> _fastCommands;
+    
+    private const int REMIDER_INTERVAL = 10;
+    private int _messageCount = 0;
 
-
-    private readonly string _systemPrompt = @"Ты — Джарвис, голосовой ассистент для Windows.
+    private readonly string _systemPrompt = @$"Ты — Джарвис, голосовой ассистент для Windows.
 
         У тебя есть инструменты (плагины) для выполнения действий:
         - ApplicationPlugin: запуск программ и игр
@@ -32,17 +33,19 @@ public class CommunicationAiService : IDisposable {
         - SystemCommandPlugin: системные команды
         - FilePlugin: работа с файлами
         - PrankPlugin: шутки
-        - RagPlugin: долговременная память (только SearchMemory)
+        - RagPlugin: долговременная память
         - ReminderPlugin: создание/удаление временных и переодических напоминаний
+        - WeatherPlugin: погода
 
-        ## КОГДА НУЖНО ИСКАТЬ В ПАМЯТИ:
-        - 'о чем я тебя просил' → SearchMemory
-        - 'как меня зовут' → SearchMemory
-        - 'что я делал вчера' → SearchMemory
+        ## КОГДА НУЖНО ИСКАТЬ В ПАМЯТИ (RagPlugin.SearchMemory):
+        - вопросы о прошлом: 'о чём я тебя просил', 'что я делал вчера', 'как меня зовут'
+        - если пользователь спрашивает о предыдущих командах
 
-        Формат ответа: DONE: / WARNING: / ERROR: + сообщение
-
-        Не используй эмодзи. Будь кратким. Ответ может быть развёрнутым только если пользователь попросил о чём-то рассказать.";
+        ## ПРАВИЛА:
+        1. Всегда используй плагины для выполнения действий. НЕ ОПИСЫВАЙ, ЧТО НАДО СДЕЛАТЬ — ВЫЗОВИ ПЛАГИН!
+        2. Формат ответа: DONE: / WARNING: / ERROR: + сообщение о результате
+        3. Не используй эмодзи. Будь кратким. Ответ может быть развёрнутым только если пользователь попросил о чём-то рассказать.
+        4. Так же помни, сейча {DateTime.Now.ToString("D")}";
 
     public CommunicationAiService(TrayService trayService, Kernel kernel, IRagMemoryService memoryService, ILogger<CommunicationAiService> logger) {
         _logger = logger;
@@ -201,6 +204,12 @@ public class CommunicationAiService : IDisposable {
                 }
             }
 
+            _messageCount++;
+            if (_messageCount >= REMIDER_INTERVAL) {
+                _messageCount = 0;
+                _history.AddAssistantMessage("Напоминаю: у меня есть плагины ApplicationPlugin, BrowserPlugin, MediaPlayerPlugin и другие. Используй их для выполнения действий.");
+            }
+
             var currentHistory = new ChatHistory();
             foreach (var msg in _history)
                 currentHistory.Add(msg);
@@ -211,6 +220,9 @@ public class CommunicationAiService : IDisposable {
 
             _history.AddUserMessage(userQuery);
             _history.AddAssistantMessage(responseContent);
+
+            while (_history.Count > 11)
+                _history.RemoveAt(1);
 
             string status = ExtractStatusFromResponse(responseContent);
             OnResult?.Invoke(status);
