@@ -24,6 +24,7 @@ public partial class App : Application {
                 .AddSemanticKernel(context.Configuration)
                 .AddOllamaHealthCheck()
                 .AddConfigure(context.Configuration)
+                .AddHttpClients()
                 .AddViewModels()
                 .AddViews());
 

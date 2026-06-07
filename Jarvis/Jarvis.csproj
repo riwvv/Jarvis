@@ -31,11 +31,13 @@
 	</ItemGroup>
 
 	<ItemGroup>
+	  <Content Remove="Models\GeoResponse.cs" />
 	  <Content Remove="Models\ReminderItem.cs" />
 	</ItemGroup>
 
 	<ItemGroup>
 		<Content Remove="Models\VectorDocument.cs" />
+		<Content Remove="Models\WeatherResponse.cs" />
 	</ItemGroup>
 
 	<ItemGroup>
@@ -56,6 +58,7 @@
     <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="10.0.8" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.8" />
     <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.8" />
+    <PackageReference Include="Microsoft.Extensions.Http" Version="10.0.8" />
     <PackageReference Include="Microsoft.Extensions.Logging" Version="10.0.8" />
     <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="10.0.8" />
     <PackageReference Include="Microsoft.SemanticKernel" Version="1.77.0" />

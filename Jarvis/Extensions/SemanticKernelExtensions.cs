@@ -22,7 +22,8 @@ public static class SemanticKernelExtensions {
         services.AddSingleton(sp => {
             var ragMemory = sp.GetRequiredService<IRagMemoryService>();
             var reminderService = sp.GetRequiredService<ReminderService>();
-            return BuildKernel(aiSettings, ragMemory, reminderService);
+            var weatherPlugin = sp.GetRequiredService<WeatherPlugin>();
+            return BuildKernel(aiSettings, ragMemory, reminderService, weatherPlugin);
         });
 
         services.AddTransient<ApplicationPlugin>();
@@ -33,11 +34,12 @@ public static class SemanticKernelExtensions {
         services.AddTransient<PrankPlugin>();
         services.AddTransient<MediaPlayerPlugin>();
         services.AddTransient<ClipboardPlugin>();
+        services.AddTransient<WeatherPlugin>();
 
         return services;
     }
 
-    private static Kernel BuildKernel(AISettings aiSettings, IRagMemoryService ragMemory, ReminderService reminderService) {
+    private static Kernel BuildKernel(AISettings aiSettings, IRagMemoryService ragMemory, ReminderService reminderService, WeatherPlugin weatherPlugin) {
         var builder = Kernel.CreateBuilder();
 
         builder.Plugins.AddFromType<ApplicationPlugin>();
@@ -49,6 +51,7 @@ public static class SemanticKernelExtensions {
         builder.Plugins.AddFromType<PrankPlugin>();
         builder.Plugins.AddFromType<ClipboardPlugin>();
 
+        builder.Plugins.AddFromObject(weatherPlugin);
         builder.Plugins.AddFromObject(new ReminderPlugin(reminderService));
         builder.Plugins.AddFromObject(new RagPlugin(ragMemory));
 

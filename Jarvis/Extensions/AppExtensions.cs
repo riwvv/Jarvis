@@ -1,10 +1,11 @@
-﻿using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
-using Jarvis.Configuration;
+﻿using Jarvis.Configuration;
+using Jarvis.Interfaces;
+using Jarvis.Plugins;
 using Jarvis.Services;
 using Jarvis.ViewModels;
 using Jarvis.Views.Windows;
-using Jarvis.Interfaces;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Jarvis.Extensions;
 
@@ -24,6 +25,7 @@ public static class AppExtensions {
         services.AddSingleton<CommunicationAiService>();
         services.AddSingleton<TrayService>();
         services.AddSingleton<ReminderService>();
+        services.AddTransient<WeatherPlugin>();
         services.AddHostedService<VoiceInstallerService>();
 
         return services;
@@ -37,6 +39,14 @@ public static class AppExtensions {
 
     public static IServiceCollection AddViews(this IServiceCollection services) {
         services.AddSingleton<MainWindow>();
+
+        return services;
+    }
+
+    public static IServiceCollection AddHttpClients(this IServiceCollection services) {
+        services.AddHttpClient("Open-Meteo", client => {
+            client.Timeout = TimeSpan.FromSeconds(20);
+        });
 
         return services;
     }
