@@ -1,4 +1,5 @@
-﻿using Microsoft.SemanticKernel;
+﻿using Windows.Devices.Geolocation;
+using Microsoft.SemanticKernel;
 using System.ComponentModel;
 using System.Globalization;
 using System.Text.Json;
@@ -9,59 +10,163 @@ namespace Jarvis.Plugins;
 
 public class WeatherPlugin {
     private static readonly CultureInfo _invariantCulture = CultureInfo.InvariantCulture;
-    private static readonly JsonSerializerOptions options = new() {
+    private static readonly JsonSerializerOptions _options = new() {
         PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower,
         PropertyNameCaseInsensitive = true,
         NumberHandling = System.Text.Json.Serialization.JsonNumberHandling.AllowReadingFromString
     };
+
     private readonly HttpClient _httpClient;
 
-    public WeatherPlugin(IHttpClientFactory factory) {
-        _httpClient = factory.CreateClient("Open-Meteo");
-    }
+    public WeatherPlugin(IHttpClientFactory factory) => _httpClient = factory.CreateClient("Open-Meteo");
 
     [KernelFunction]
     [Description("Поиск погоды в конкретном городе")]
     public async Task<string> GetWeatherInCity([Description("Название города")] string cityName) {
+        var coords = await GetCoordinatesByCityName(cityName);
+        if (!coords.HasValue)
+            return $"Город '{cityName}' не найден.";
+
+        var weather = await GetCurrentWeatherByCoordinates(coords.Value.Lat, coords.Value.Lon);
+        if (!weather.HasValue)
+            return $"Не удалось получить погоду для города {cityName}";
+
+        return $"Сейчас в городе {coords.Value.CityName} {weather.Value.Temp:F0} градусов, {weather.Value.Description}.";
+    }
+
+    [KernelFunction]
+    [Description("Погода по текущей геолокации, когда название города не указано")]
+    public async Task<string> GetWeatherAtCurrentLocation() {
+        var coordsResult = await GetCurrentCoordinates();
+        if (!coordsResult.HasValue)
+            return coordsResult?.ErrorMessage ?? "Не удалось определить местоположение";
+
+        var (lat, lon, _) = coordsResult.Value;
+        var weather = await GetCurrentWeatherByCoordinates(lat, lon);
+        if (!weather.HasValue)
+            return "Не удалось получить погоду по вашему местоположению";
+
+        return $"Сейчас в вашем районе {weather.Value.Temp:F0} градусов, {weather.Value.Description}.";
+    }
+
+    [KernelFunction]
+    [Description("Прогноз погоды на завтра в указанном городе")]
+    public async Task<string> GetTomorrowForecast([Description("Название города")] string cityName) {
+        var coords = await GetCoordinatesByCityName(cityName);
+        if (!coords.HasValue)
+            return $"Город '{cityName}' не найден.";
+
+        var forecast = await GetDailyForecastByCoordinates(coords.Value.Lat, coords.Value.Lon, days: 2);
+        if (!forecast.HasValue)
+            return $"Не удалось получить прогноз для города {cityName}";
+
+        return $"Завтра в городе {coords.Value.CityName} ожидается {forecast.Value.Description}, " +
+               $"температура от {forecast.Value.TempMin:F0} до {forecast.Value.TempMax:F0} градусов.";
+    }
+
+    [KernelFunction]
+    [Description("Прогноз погоды на завтра по текущему местоположению")]
+    public async Task<string> GetTomorrowForecastAtCurrentLocation() {
+        var coordsResult = await GetCurrentCoordinates();
+        if (!coordsResult.HasValue)
+            return coordsResult?.ErrorMessage ?? "Не удалось определить местоположение";
+
+        var (lat, lon, _) = coordsResult.Value;
+        var forecast = await GetDailyForecastByCoordinates(lat, lon, days: 2);
+        if (!forecast.HasValue)
+            return "Не удалось получить прогноз для вашего местоположения";
+
+        return $"Завтра в вашем районе ожидается {forecast.Value.Description}, " +
+               $"температура от {forecast.Value.TempMin:F0} до {forecast.Value.TempMax:F0} градусов.";
+    }
+
+    private async Task<(double TempMax, double TempMin, string Description)?> GetDailyForecastByCoordinates(double lat, double lon, int days = 2) {
         try {
-            string geoUrl = $"https://geocoding-api.open-meteo.com/v1/search?name={Uri.EscapeDataString(cityName)}&count=1&language=ru&format=json";
-            var geoResponse = await _httpClient.GetAsync(geoUrl);
+            var latStr = lat.ToString(_invariantCulture);
+            var lonStr = lon.ToString(_invariantCulture);
+            string url = $"https://api.open-meteo.com/v1/forecast?latitude={latStr}&longitude={lonStr}&daily=temperature_2m_max,temperature_2m_min,weathercode&timezone=auto&forecast_days={days}";
 
-            string geoJson = await geoResponse.Content.ReadAsStringAsync();
-            var geoData = JsonSerializer.Deserialize<GeoResponse>(geoJson, options);
+            var response = await _httpClient.GetStringAsync(url);
+            var data = JsonSerializer.Deserialize<DailyForecastResponse>(response, _options);
 
-            if (geoData?.results == null || geoData.results.Count == 0)
-                return $"Город '{cityName}' не найден.";
+            if (data?.Daily == null || data.Daily.Time.Length < 2)
+                return null;
 
-            var bestMatch = geoData.results[0];
-
-            if (bestMatch.latitude == 0 && bestMatch.longitude == 0)
-                return $"Не удалось определить координаты города '{cityName}'";
-
-            var lat = bestMatch.latitude.ToString(_invariantCulture);
-            var lon = bestMatch.longitude.ToString(_invariantCulture);
-            var foundName = bestMatch.name;
-
-            string weatherUrl = $"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&current_weather=true&timezone=auto";
-            var weatherResponse = await _httpClient.GetAsync(weatherUrl);
-
-            string weatherJson = await weatherResponse.Content.ReadAsStringAsync();
-            var weatherData = JsonSerializer.Deserialize<WeatherResponse>(weatherJson, options);
-
-            if (weatherData == null || weatherData.current_weather == null)
-                return $"Погода для города {cityName} не найдена системой. API вернул: {weatherJson}";
-
-            var temp = weatherData.current_weather.temperature;
-            var weatherCode = weatherData.current_weather.weathercode;
+            var tempMax = data.Daily.TemperatureMax[1];
+            var tempMin = data.Daily.TemperatureMin[1];
+            var weatherCode = data.Daily.WeatherCode[1];
             var description = GetWeatherDescription(weatherCode);
 
-            return $"Сейчас в городе {foundName} {temp:F0} градусов, {description}.";
+            return (tempMax, tempMin, description);
         }
-        catch (JsonException ex) {
-            return $"Ошибка обработки данных погоды: {ex.Message}";
+        catch {
+            return null;
+        }
+    }
+
+    private async Task<(double Lat, double Lon, string CityName)?> GetCoordinatesByCityName(string cityName) {
+        try {
+            string url = $"https://geocoding-api.open-meteo.com/v1/search?name={Uri.EscapeDataString(cityName)}&count=1&language=ru&format=json";
+            var response = await _httpClient.GetStringAsync(url);
+            var data = JsonSerializer.Deserialize<GeoResponse>(response, _options);
+
+            if (data?.results == null || data.results.Count == 0)
+                return null;
+
+            var match = data.results[0];
+            return (match.latitude, match.longitude, match.name);
+        }
+        catch {
+            return null;
+        }
+    }
+
+    private async Task<(double Lat, double Lon, string? ErrorMessage)?> GetCurrentCoordinates() {
+        try {
+            var accessStatus = await Geolocator.RequestAccessAsync();
+            if (accessStatus != GeolocationAccessStatus.Allowed)
+                return (0, 0, "Доступ к геолокации запрещён. Включите его в настройках Windows.");
+
+            var geolocator = new Geolocator {
+                DesiredAccuracy = PositionAccuracy.High,
+                ReportInterval = 2000
+            };
+
+            var position = await geolocator.GetGeopositionAsync(TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(15));
+            return (position.Coordinate.Point.Position.Latitude, position.Coordinate.Point.Position.Longitude, null);
+        }
+        catch (UnauthorizedAccessException) {
+            return (0, 0, "Нет доступа к геолокации. Разрешите доступ в настройках Windows.");
         }
         catch (Exception ex) {
-            return $"Не удалось получить погоду. Ошибка: {ex.Message}";
+            return (0, 0, $"Ошибка геолокации: {ex.Message}");
+        }
+    }
+
+    private async Task<(double Temp, string Description)?> GetCurrentWeatherByCoordinates(double lat, double lon) {
+        try {
+            var latStr = lat.ToString(_invariantCulture);
+            var lonStr = lon.ToString(_invariantCulture);
+            string url = $"https://api.open-meteo.com/v1/forecast?latitude={latStr}&longitude={lonStr}&current_weather=true&timezone=auto";
+
+            var response = await _httpClient.GetStringAsync(url);
+            var data = JsonSerializer.Deserialize<WeatherResponse>(response, _options);
+
+            if (data?.current_weather == null)
+                return null;
+
+            var temp = data.current_weather.temperature;
+            var description = GetWeatherDescription(data.current_weather.weathercode);
+            return (temp, description);
+        }
+        catch (HttpRequestException) {
+            return null;
+        }
+        catch (JsonException) {
+            return null;
+        }
+        catch {
+            return null;
         }
     }
 
