@@ -161,6 +161,12 @@ public class CommunicationAiService : IDisposable {
                 return result.GetValue<string>() ?? ":)";
             },
 
+            ["какая погода"] = async (_) => {
+                var function = _kernel.Plugins.GetFunction("WeatherPlugin", "GetWeatherInCurrentLocation");
+                var result = await _kernel.InvokeAsync(function);
+                return result.GetValue<string>() ?? "Погода не найдена";
+            },
+
             ["выключи звук"] = async (_) => {
                 var function = _kernel.Plugins.GetFunction("SystemAudioPlugin", "VolumeTurnOff");
                 var result = await _kernel.InvokeAsync(function);

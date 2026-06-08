@@ -1,4 +1,6 @@
-﻿using Microsoft.SemanticKernel;
+﻿using Windows.Devices.Geolocation;
+using Microsoft.Extensions.Logging;
+using Microsoft.SemanticKernel;
 using System.ComponentModel;
 using System.Globalization;
 using System.Text.Json;
@@ -14,6 +16,7 @@ public class WeatherPlugin {
         PropertyNameCaseInsensitive = true,
         NumberHandling = System.Text.Json.Serialization.JsonNumberHandling.AllowReadingFromString
     };
+
     private readonly HttpClient _httpClient;
 
     public WeatherPlugin(IHttpClientFactory factory) {
@@ -62,6 +65,65 @@ public class WeatherPlugin {
         }
         catch (Exception ex) {
             return $"Не удалось получить погоду. Ошибка: {ex.Message}";
+        }
+    }
+
+    [KernelFunction]
+    [Description("Погода по текущей геолокации, когда название города не указано")]
+    public async Task<string> GetWeatherInCurrentLocation() {
+        try {
+            var accessStatus = await Geolocator.RequestAccessAsync();
+            if (accessStatus != GeolocationAccessStatus.Allowed)
+                return "Доступ к геолокации запрещён. Включите его в настройках Windows.";
+
+            var geolocator = new Geolocator {
+                DesiredAccuracy = PositionAccuracy.High,
+                ReportInterval = 2000
+            };
+
+            var position = await geolocator.GetGeopositionAsync(TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(15));
+
+            var lat = position.Coordinate.Point.Position.Latitude;
+            var lon = position.Coordinate.Point.Position.Longitude;
+
+            return await GetWeatherByCoordinates(lat, lon);
+        }
+        catch (UnauthorizedAccessException) {
+            return "Нет доступа к геолокации. Разрешите доступ в настройках Windows.";
+        }
+        catch (Exception ex) {
+            return $"Не удалось получить погоду: {ex.Message}";
+        }
+    }
+
+    private async Task<string> GetWeatherByCoordinates(double lat, double lon) {
+        try {
+            var latStr = lat.ToString(_invariantCulture);
+            var lonStr = lon.ToString(_invariantCulture);
+
+            string weatherUrl = $"https://api.open-meteo.com/v1/forecast?latitude={latStr}&longitude={lonStr}&current_weather=true&timezone=auto";
+            var weatherResponse = await _httpClient.GetAsync(weatherUrl);
+            string weatherJson = await weatherResponse.Content.ReadAsStringAsync();
+
+            var weatherData = JsonSerializer.Deserialize<WeatherResponse>(weatherJson, options);
+
+            if (weatherData?.current_weather == null)
+                return $"Не удалось получить погоду по вашему местоположению.";
+
+            var temp = weatherData.current_weather.temperature;
+            var weatherCode = weatherData.current_weather.weathercode;
+            var description = GetWeatherDescription(weatherCode);
+
+            return $"Сейчас в вашем районе {temp:F0} градусов, {description}.";
+        }
+        catch (HttpRequestException) {
+            return "Не удалось подключиться к сервису погоды. Проверьте интернет-соединение.";
+        }
+        catch (JsonException ex) {
+            return $"Ошибка обработки данных: {ex.Message}";
+        }
+        catch (Exception ex) {
+            return $"Не удалось получить погоду: {ex.Message}";
         }
     }
 
