@@ -1,5 +1,4 @@
 ﻿using Windows.Devices.Geolocation;
-using Microsoft.Extensions.Logging;
 using Microsoft.SemanticKernel;
 using System.ComponentModel;
 using System.Globalization;
