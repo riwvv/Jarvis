@@ -118,4 +118,16 @@ ollama pull qwen3-embedding:4b
 | Логи | Смотрите `logs/jarvis-logs.txt` |
 
 ## 📜 Лицензия
-Проект распространяется под лицензией MIT.
+
+Этот проект является **запатентованным программным обеспечением (proprietary software)** и не является открытым.
+
+```
+Copyright (C) 2026 Буланов Михаил Андреевич (riwvv)
+
+All rights reserved.
+
+This software and its source code are the proprietary information of Буланов Михаил Андреевич.
+You may not use, copy, modify, or distribute this software without explicit written permission from the author.
+```
+
+Полный текст лицензии доступен в файле [LICENSE](LICENSE).
