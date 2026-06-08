@@ -1,6 +1,7 @@
 # 🎙️ Jarvis — Голосовой ассистент на C# с локальным ИИ
 
 [![GitHub stars](https://img.shields.io/github/stars/riwvv/Jarvis)](https://github.com/riwvv/Jarvis/stargazers)
+[![License](https://img.shields.io/badge/License-All%20Rights%20Reserved-red)](LICENSE)
 [![C#](https://img.shields.io/badge/C%23-14.0-blue)](https://learn.microsoft.com/ru-ru/dotnet/csharp/)
 [![WPF](https://img.shields.io/badge/WPF-.NET%2010.0-green)](https://learn.microsoft.com/ru-ru/dotnet/desktop/wpf/)
 [![.NET](https://img.shields.io/badge/.NET-10.0-purple)](https://dotnet.microsoft.com/)
