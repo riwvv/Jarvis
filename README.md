@@ -73,6 +73,8 @@ ollama pull qwen3-embedding:4b
 
 Скачайте последнюю версию из раздела [Releases](https://github.com/riwvv/Jarvis/releases) и запустите `Jarvis.exe`.
 
+При запуске Jarvis сообщит о начале загрузки и скажет, когда будет готов к работе. Никаких загрузочных окон.
+
 ---
 
 ## 🗣️ Примеры команд
