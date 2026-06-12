@@ -1,13 +1,13 @@
-﻿using Jarvis.Extensions;
-using Jarvis.Services;
-using Jarvis.ViewModels;
-using Jarvis.Views.Windows;
+﻿using Application = System.Windows.Application;
+using MessageBox = System.Windows.MessageBox;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using Serilog;
 using System.Windows;
-using Application = System.Windows.Application;
-using MessageBox = System.Windows.MessageBox;
+using Serilog;
+using Jarvis.Views.Windows;
+using Jarvis.Extensions;
+using Jarvis.ViewModels;
+using Jarvis.Services;
 
 namespace Jarvis;
 
