@@ -35,6 +35,7 @@ public static class SemanticKernelExtensions {
         services.AddTransient<MediaPlayerPlugin>();
         services.AddTransient<ClipboardPlugin>();
         services.AddTransient<WeatherPlugin>();
+        services.AddTransient<MiniGamePlugin>();
 
         return services;
     }
@@ -50,6 +51,7 @@ public static class SemanticKernelExtensions {
         builder.Plugins.AddFromType<MediaPlayerPlugin>();
         builder.Plugins.AddFromType<PrankPlugin>();
         builder.Plugins.AddFromType<ClipboardPlugin>();
+        builder.Plugins.AddFromType<MiniGamePlugin>();
 
         builder.Plugins.AddFromObject(weatherPlugin);
         builder.Plugins.AddFromObject(new ReminderPlugin(reminderService));

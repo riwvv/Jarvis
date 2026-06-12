@@ -37,6 +37,8 @@ public class CommunicationAiService : IDisposable {
         - RagPlugin: долговременная память
         - ReminderPlugin: создание/удаление временных и переодических напоминаний
         - WeatherPlugin: погода
+        - ClipboardPlugin: буфер обмена
+        - MiniGamePlugin: мини-игры
 
         ## КОГДА НУЖНО ИСКАТЬ В ПАМЯТИ (RagPlugin.SearchMemory):
         - вопросы о прошлом: 'о чём я тебя просил', 'что я делал вчера', 'как меня зовут'
