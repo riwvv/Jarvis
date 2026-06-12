@@ -1,12 +1,13 @@
-﻿using MessageBox = System.Windows.MessageBox;
-using Application = System.Windows.Application;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
-using System.Windows;
-using Serilog;
+﻿using Jarvis.Extensions;
+using Jarvis.Services;
 using Jarvis.ViewModels;
 using Jarvis.Views.Windows;
-using Jarvis.Extensions;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using Serilog;
+using System.Windows;
+using Application = System.Windows.Application;
+using MessageBox = System.Windows.MessageBox;
 
 namespace Jarvis;
 
@@ -47,6 +48,9 @@ public partial class App : Application {
         try {
             await _host.StartAsync();
             Log.Information("Приложение запускается...");
+
+            var initService = _host.Services.GetRequiredService<InitializationNotificationService>();
+            await initService.InitializeAllAsync();
 
             var kernelCore = await _host.Services.InitializeKernelWithValidationAsync();
             if (kernelCore == null) {

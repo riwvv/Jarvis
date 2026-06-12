@@ -6,16 +6,23 @@ using Jarvis.Configuration;
 namespace Jarvis.Services;
 
 public class TextToSpeechService : IDisposable {
-    private readonly ILogger<TextToSpeechService> _logger;
-    private readonly IConfiguration _configuration;
-    private readonly SemaphoreSlim _speakSemaphore = new(1, 1);
-    private readonly string _targetVoiceName;
-    private SpeechSynthesizer? _synthesizer;
-    private bool _isSpeaking = false;
-
     public event Action? OnStartedSpeaking;
     public event Action? OnFinishedSpeaking;
     public event Action<string>? OnError;
+
+    private readonly ILogger<TextToSpeechService> _logger;
+    private readonly IConfiguration _configuration;
+    private readonly TaskCompletionSource<bool> _initializationTcs = new();
+    private readonly string _targetVoiceName;
+
+    private readonly Queue<string> _messageQueue = new();
+    private readonly SemaphoreSlim _queueLock = new(1, 1);
+    private bool _isProcessingQueue = false;
+
+    private TaskCompletionSource<bool>? _currentMessageTcs;
+
+    private SpeechSynthesizer? _synthesizer;
+    private bool _isSpeaking = false;
 
     public TextToSpeechService(IConfiguration configuration, ILogger<TextToSpeechService> logger) {
         _logger = logger;
@@ -24,26 +31,117 @@ public class TextToSpeechService : IDisposable {
 
         InitializeSynthesizer();
         ConfigureRussianVoice();
+
+        _initializationTcs.TrySetResult(true);
+    }
+
+    public async Task WaitForInitializationComplete() => await _initializationTcs.Task;
+
+    public async Task SpeakAsync(string text) {
+        var tcs = new TaskCompletionSource<bool>();
+
+        await _queueLock.WaitAsync();
+        try {
+            _messageQueue.Enqueue(text);
+            _currentMessageTcs = tcs;
+
+            if (!_isProcessingQueue) {
+                _ = ProcessQueueAsync();
+            }
+        }
+        finally {
+            _queueLock.Release();
+        }
+
+        await tcs.Task;
+    }
+
+    public void StopSpeaking() {
+        try {
+            _synthesizer?.SpeakAsyncCancelAll();
+        }
+        catch (Exception ex) {
+            _logger.LogError(ex, "TTS: Ошибка остановки");
+        }
+    }
+
+    private async Task ProcessQueueAsync() {
+        await _queueLock.WaitAsync();
+        try {
+            _isProcessingQueue = true;
+        }
+        finally {
+            _queueLock.Release();
+        }
+
+        while (true) {
+            string? nextMessage = null;
+            TaskCompletionSource<bool>? currentTcs = null;
+
+            await _queueLock.WaitAsync();
+            try {
+                if (_messageQueue.Count == 0) {
+                    _isProcessingQueue = false;
+                    _currentMessageTcs = null;
+                    break;
+                }
+                nextMessage = _messageQueue.Dequeue();
+                currentTcs = _currentMessageTcs;
+            }
+            finally {
+                _queueLock.Release();
+            }
+
+            await SpeakInternalAsync(nextMessage);
+
+            currentTcs?.TrySetResult(true);
+        }
+    }
+
+    private async Task SpeakInternalAsync(string text) {
+        if (_synthesizer == null) return;
+        if (string.IsNullOrWhiteSpace(text)) return;
+
+        string cleanText = CleanTextForSpeech(text);
+
+        var tcs = new TaskCompletionSource<bool>();
+
+        void OnSpeakCompleted(object? s, SpeakCompletedEventArgs e) {
+            _isSpeaking = false;
+            OnFinishedSpeaking?.Invoke();
+            _logger.LogInformation("TTS: Воспроизведение завершено");
+            tcs.TrySetResult(true);
+        }
+
+        void OnSpeakStarted(object? s, SpeakStartedEventArgs e) {
+            _isSpeaking = true;
+            OnStartedSpeaking?.Invoke();
+            _logger.LogInformation($"TTS: Начало воспроизведения: {cleanText}");
+        }
+
+        _synthesizer.SpeakStarted += OnSpeakStarted;
+        _synthesizer.SpeakCompleted += OnSpeakCompleted;
+
+        try {
+            _synthesizer.SpeakAsync(cleanText);
+            await tcs.Task;
+        }
+        finally {
+            _synthesizer.SpeakStarted -= OnSpeakStarted;
+            _synthesizer.SpeakCompleted -= OnSpeakCompleted;
+        }
     }
 
     private void InitializeSynthesizer() {
         _synthesizer?.Dispose();
         _synthesizer = new SpeechSynthesizer();
         _synthesizer.SetOutputToDefaultAudioDevice();
-        _synthesizer.Rate = _configuration.GetSection("TTSSettings").Get<TTSSettings>()!.TtsRate;
-        _synthesizer.Volume = _configuration.GetSection("TTSSettings").Get<TTSSettings>()!.TtsVolume;
 
-        _synthesizer.SpeakStarted += (s, e) => {
-            _isSpeaking = true;
-            OnStartedSpeaking?.Invoke();
-            _logger.LogInformation("TTS: Начало воспроизведения");
-        };
-
-        _synthesizer.SpeakCompleted += (s, e) => {
-            _isSpeaking = false;
-            OnFinishedSpeaking?.Invoke();
-            _logger.LogInformation("TTS: Воспроизведение завершено");
-        };
+        var ttsSettings = _configuration.GetSection("TTSSettings").Get<TTSSettings>();
+        if (ttsSettings != null) {
+            _synthesizer.Rate = ttsSettings.TtsRate;
+            _synthesizer.Volume = ttsSettings.TtsVolume;
+        }
     }
 
     private void ConfigureRussianVoice() {
@@ -71,40 +169,6 @@ public class TextToSpeechService : IDisposable {
         }
     }
 
-    public async Task SpeakAsync(string text, CancellationToken cancellationToken = default) {
-        if (_synthesizer == null) return;
-        if (string.IsNullOrWhiteSpace(text)) return;
-
-        string cleanText = CleanTextForSpeech(text);
-        await _speakSemaphore.WaitAsync(cancellationToken);
-
-        try {
-            if (_isSpeaking) _synthesizer.SpeakAsyncCancelAll();
-            await Task.Run(() => _synthesizer.SpeakAsync(cleanText), cancellationToken);
-        }
-        catch (OperationCanceledException) {
-            _synthesizer.SpeakAsyncCancelAll();
-        }
-        catch (Exception ex) {
-            _logger.LogError(ex, "TTS: Ошибка озвучивания");
-            OnError?.Invoke(ex.Message);
-        }
-        finally {
-            _speakSemaphore.Release();
-        }
-    }
-
-    public void StopSpeaking() {
-        try {
-            if (_isSpeaking) {
-                _synthesizer?.SpeakAsyncCancelAll();
-            }
-        }
-        catch (Exception ex) {
-            _logger.LogError(ex, "TTS: Ошибка остановки");
-        }
-    }
-
     private string CleanTextForSpeech(string text) {
         if (string.IsNullOrWhiteSpace(text)) return string.Empty;
 
@@ -125,7 +189,7 @@ public class TextToSpeechService : IDisposable {
 
     public void Dispose() {
         StopSpeaking();
-        _speakSemaphore?.Dispose();
+        _queueLock?.Dispose();
         _synthesizer?.Dispose();
     }
 }
