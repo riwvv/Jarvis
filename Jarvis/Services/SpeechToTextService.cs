@@ -1,12 +1,12 @@
-﻿using Jarvis.Configuration;
-using Microsoft.Extensions.Logging;
+﻿using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using NAudio.Wave;
-using SileroVad;
 using System.IO;
 using System.Text.Json;
 using System.Windows;
+using NAudio.Wave;
+using SileroVad;
 using Vosk;
+using Jarvis.Configuration;
 using MessageBox = System.Windows.MessageBox;
 using Timer = System.Threading.Timer;
 
@@ -55,6 +55,7 @@ public class SpeechToTextService : IDisposable {
     private readonly ILogger<SpeechToTextService> _logger;
     private readonly STTSettings _settings;
     private readonly int _sampleRate;
+    private readonly Task _initializationTask;
 
     public SpeechToTextService(TrayService trayService, IOptions<STTSettings> settings, ILogger<SpeechToTextService> logger) {
         _logger = logger;
@@ -63,16 +64,20 @@ public class SpeechToTextService : IDisposable {
 
         OnWakeWordDetected += trayService.ShowAsOverlay;
 
-        InitializeVosk();
-        InitializeMicrophone();
-        InitializeVad();
+        _initializationTask = Task.Run(async () => {
+            await InitializeVosk();
+            await InitializeMicrophone();
+            await InitializeVad();
+        });
     }
+
+    public async Task WaitForInitializationComplete() => await _initializationTask;
 
     public void Start() => StartListening();
 
     #region Инициализация
 
-    private void InitializeVosk() {
+    private async Task InitializeVosk() {
         try {
             string modelPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, _settings.SttModelPath);
             if (!Directory.Exists(modelPath))
@@ -92,13 +97,7 @@ public class SpeechToTextService : IDisposable {
         }
     }
 
-    private string BuildWakeWordGrammar() {
-        var entries = _wakeWordVariants.Select(v => $"\"{v}\"").ToList();
-        entries.Add("\"[unk]\"");
-        return $"[{string.Join(", ", entries)}]";
-    }
-
-    private void InitializeMicrophone() {
+    private async Task InitializeMicrophone() {
         _microphone = new WaveInEvent {
             WaveFormat = new WaveFormat(_sampleRate, CHANNELS),
             BufferMilliseconds = BUFFER_MS
@@ -107,7 +106,7 @@ public class SpeechToTextService : IDisposable {
         _microphone.RecordingStopped += OnRecordingStopped;
     }
 
-    private void InitializeVad() {
+    private async Task InitializeVad() {
         try {
             _vad = new Vad();
             _vadAudioBuffer = [];
@@ -118,6 +117,12 @@ public class SpeechToTextService : IDisposable {
             _logger.LogWarning(ex, "Не удалось инициализировать Silero VAD, работаю без VAD (таймаут 10 сек)");
             _isVadAvailable = false;
         }
+    }
+
+    private string BuildWakeWordGrammar() {
+        var entries = _wakeWordVariants.Select(v => $"\"{v}\"").ToList();
+        entries.Add("\"[unk]\"");
+        return $"[{string.Join(", ", entries)}]";
     }
 
     #endregion

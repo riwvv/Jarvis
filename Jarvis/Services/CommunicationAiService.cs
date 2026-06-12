@@ -19,7 +19,8 @@ public class CommunicationAiService : IDisposable {
     private readonly SemaphoreSlim _semaphore = new(1, 1);
     private readonly TrayService? _trayService;
     private readonly Dictionary<string, Func<string, Task<string>>> _fastCommands;
-    
+    private readonly TaskCompletionSource<bool> _initializationTcs = new();
+
     private const int REMIDER_INTERVAL = 10;
     private int _messageCount = 0;
 
@@ -191,7 +192,11 @@ public class CommunicationAiService : IDisposable {
                 return result.GetValue<string>() ?? "Звук выключен";
             }
         };
+
+        _initializationTcs.TrySetResult(true);
     }
+
+    public async Task WaitForInitializationComplete() => await _initializationTcs.Task;
 
     public async Task<string?> GetRequestUser(string userQuery, CancellationToken cancellationToken = default) {
         if (string.IsNullOrWhiteSpace(userQuery)) {

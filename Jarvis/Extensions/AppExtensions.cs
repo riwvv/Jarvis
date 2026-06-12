@@ -1,11 +1,11 @@
-﻿using Jarvis.Configuration;
-using Jarvis.Interfaces;
-using Jarvis.Plugins;
-using Jarvis.Services;
-using Jarvis.ViewModels;
-using Jarvis.Views.Windows;
+﻿using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
+using Jarvis.Views.Windows;
+using Jarvis.Configuration;
+using Jarvis.ViewModels;
+using Jarvis.Interfaces;
+using Jarvis.Services;
+using Jarvis.Plugins;
 
 namespace Jarvis.Extensions;
 
@@ -19,9 +19,10 @@ public static class AppExtensions {
     }
 
     public static IServiceCollection AddServices(this IServiceCollection services) {
-        services.AddSingleton<SpeechToTextService>();
+        services.AddSingleton<InitializationNotificationService>();
         services.AddSingleton<TextToSpeechService>();
         services.AddSingleton<IRagMemoryService, RagMemoryService>();
+        services.AddSingleton<SpeechToTextService>();
         services.AddSingleton<CommunicationAiService>();
         services.AddSingleton<TrayService>();
         services.AddSingleton<ReminderService>();
