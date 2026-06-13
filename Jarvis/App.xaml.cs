@@ -22,10 +22,10 @@ public partial class App : Application {
                 .WriteTo.Debug()
                 .WriteTo.File("logs/jarvis-logs.txt", rollingInterval: RollingInterval.Day, retainedFileCountLimit: 7))
         .ConfigureServices((context, services) => services.AddServices()
+                .AddHttpClients(context.Configuration)
                 .AddSemanticKernel(context.Configuration)
                 .AddOllamaHealthCheck()
                 .AddConfigure(context.Configuration)
-                .AddHttpClients()
                 .AddViewModels()
                 .AddViews());
 

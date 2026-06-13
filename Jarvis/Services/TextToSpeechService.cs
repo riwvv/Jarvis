@@ -8,7 +8,6 @@ namespace Jarvis.Services;
 public class TextToSpeechService : IDisposable {
     public event Action? OnStartedSpeaking;
     public event Action? OnFinishedSpeaking;
-    public event Action<string>? OnError;
 
     private readonly ILogger<TextToSpeechService> _logger;
     private readonly IConfiguration _configuration;
