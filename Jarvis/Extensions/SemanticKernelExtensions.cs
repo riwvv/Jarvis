@@ -2,7 +2,6 @@
 using Jarvis.Interfaces;
 using Jarvis.Plugins;
 using Jarvis.Services;
-using Jarvis.Wrapper;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.SemanticKernel;
@@ -23,7 +22,8 @@ public static class SemanticKernelExtensions {
             var ragMemory = sp.GetRequiredService<IRagMemoryService>();
             var reminderService = sp.GetRequiredService<ReminderService>();
             var weatherPlugin = sp.GetRequiredService<WeatherPlugin>();
-            return BuildKernel(aiSettings, ragMemory, reminderService, weatherPlugin);
+            var httpClient = sp.GetRequiredService<IHttpClientFactory>().CreateClient("Ollama");
+            return BuildKernel(aiSettings, ragMemory, reminderService, weatherPlugin, httpClient);
         });
 
         services.AddTransient<ApplicationPlugin>();
@@ -35,11 +35,12 @@ public static class SemanticKernelExtensions {
         services.AddTransient<MediaPlayerPlugin>();
         services.AddTransient<ClipboardPlugin>();
         services.AddTransient<WeatherPlugin>();
+        services.AddTransient<MiniGamePlugin>();
 
         return services;
     }
 
-    private static Kernel BuildKernel(AISettings aiSettings, IRagMemoryService ragMemory, ReminderService reminderService, WeatherPlugin weatherPlugin) {
+    private static Kernel BuildKernel(AISettings aiSettings, IRagMemoryService ragMemory, ReminderService reminderService, WeatherPlugin weatherPlugin, HttpClient httpClient) {
         var builder = Kernel.CreateBuilder();
 
         builder.Plugins.AddFromType<ApplicationPlugin>();
@@ -50,16 +51,15 @@ public static class SemanticKernelExtensions {
         builder.Plugins.AddFromType<MediaPlayerPlugin>();
         builder.Plugins.AddFromType<PrankPlugin>();
         builder.Plugins.AddFromType<ClipboardPlugin>();
+        builder.Plugins.AddFromType<MiniGamePlugin>();
 
         builder.Plugins.AddFromObject(weatherPlugin);
         builder.Plugins.AddFromObject(new ReminderPlugin(reminderService));
         builder.Plugins.AddFromObject(new RagPlugin(ragMemory));
 
-        builder.AddOpenAIChatCompletion(
+        builder.AddOllamaChatCompletion(
             modelId: aiSettings.ModelId,
-            endpoint: new Uri(aiSettings.Endpoint),
-            apiKey: aiSettings.ApiKey,
-            httpClient: new HttpClient(new OllamaContextHandler(16384)));
+            httpClient: httpClient);
 
         return builder.Build();
     }

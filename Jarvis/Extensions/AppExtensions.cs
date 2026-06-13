@@ -44,9 +44,15 @@ public static class AppExtensions {
         return services;
     }
 
-    public static IServiceCollection AddHttpClients(this IServiceCollection services) {
+    public static IServiceCollection AddHttpClients(this IServiceCollection services, IConfiguration configuration) {
         services.AddHttpClient("Open-Meteo", client => {
             client.Timeout = TimeSpan.FromSeconds(20);
+        });
+
+        services.AddHttpClient("Ollama", client => {
+            client.Timeout = TimeSpan.FromSeconds(120);
+            client.BaseAddress = new Uri(configuration.GetSection("AISettings").Get<AISettings>()!.Endpoint);
+            client.DefaultRequestHeaders.ConnectionClose = true;
         });
 
         return services;

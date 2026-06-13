@@ -1,4 +1,4 @@
-﻿using Microsoft.SemanticKernel.Connectors.OpenAI;
+﻿using Microsoft.SemanticKernel.Connectors.Ollama;
 using Microsoft.SemanticKernel.ChatCompletion;
 using Microsoft.Extensions.Logging;
 using Microsoft.SemanticKernel;
@@ -15,7 +15,7 @@ public class CommunicationAiService : IDisposable {
     private readonly IChatCompletionService _chat;
     private readonly Kernel _kernel;
     private readonly ChatHistory _history;
-    private readonly OpenAIPromptExecutionSettings _settings;
+    private readonly OllamaPromptExecutionSettings _settings;
     private readonly SemaphoreSlim _semaphore = new(1, 1);
     private readonly TrayService? _trayService;
     private readonly Dictionary<string, Func<string, Task<string>>> _fastCommands;
@@ -37,6 +37,8 @@ public class CommunicationAiService : IDisposable {
         - RagPlugin: долговременная память
         - ReminderPlugin: создание/удаление временных и переодических напоминаний
         - WeatherPlugin: погода
+        - ClipboardPlugin: буфер обмена
+        - MiniGamePlugin: мини-игры
 
         ## КОГДА НУЖНО ИСКАТЬ В ПАМЯТИ (RagPlugin.SearchMemory):
         - вопросы о прошлом: 'о чём я тебя просил', 'что я делал вчера', 'как меня зовут'
@@ -58,13 +60,12 @@ public class CommunicationAiService : IDisposable {
 
         _chat = _kernel.GetRequiredService<IChatCompletionService>();
         _history = [];
-        _settings = new OpenAIPromptExecutionSettings {
+        _settings = new OllamaPromptExecutionSettings {
             FunctionChoiceBehavior = FunctionChoiceBehavior.Auto(),
-            Temperature = 0.45,
-            MaxTokens = 1024,
-            TopP = 0.8,
-            FrequencyPenalty = 0.1,
-            PresencePenalty = 0.1
+            Temperature = 0.6333f,
+            TopP = 0.8f,
+            TopK = 20,
+            NumPredict = 8192
         };
 
         _history.AddSystemMessage(_systemPrompt);
@@ -184,6 +185,24 @@ public class CommunicationAiService : IDisposable {
                 var function = _kernel.Plugins.GetFunction("WeatherPlugin", "GetTomorrowForecastAtCurrentLocation");
                 var result = await _kernel.InvokeAsync(function);
                 return result.GetValue<string>() ?? "Погода не найдена";
+            },
+
+            ["брось кубик"] = async (_) => {
+                var function = _kernel.Plugins.GetFunction("MiniGamePlugin", "RollTheDice");
+                var result = await _kernel.InvokeAsync(function);
+                return result.GetValue<string>() ?? "Перелёт";
+            },
+
+            ["брось монетку"] = async (_) => {
+                var function = _kernel.Plugins.GetFunction("MiniGamePlugin", "FlipCoin");
+                var result = await _kernel.InvokeAsync(function);
+                return result.GetValue<string>() ?? "Ой, встала на ребро";
+            },
+
+            ["Случайное число"] = async (_) => {
+                var function = _kernel.Plugins.GetFunction("MiniGamePlugin", "RandomNumberToTen");
+                var result = await _kernel.InvokeAsync(function);
+                return result.GetValue<string>() ?? $"Случайное число: {new Random().Next(1, 11)}";
             },
 
             ["выключи звук"] = async (_) => {
