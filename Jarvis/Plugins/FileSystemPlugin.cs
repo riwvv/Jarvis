@@ -1,8 +1,8 @@
 ﻿using Microsoft.SemanticKernel;
 using System.ComponentModel;
 using System.Diagnostics;
-using System.IO;
 using System.Text;
+using System.IO;
 
 namespace Jarvis.Plugins;
 
@@ -14,16 +14,19 @@ public class FileSystemPlugin {
 
         try {
             var path = GetFullFolderPath(folderName);
-            Debug.WriteLine(path);
 
             if (!Directory.Exists(path)) return $"Папка {folderName} не найдена";
+
+            var dir = new DirectoryInfo(path);
+            var size = RecursivelyGettingTheSize(dir);
+            var stringSize = ConversionToTheOptimalUnit(size);
 
             var result = new StringBuilder();
             result.AppendLine($"В папке {folderName} объектов найдено: {Directory.GetFileSystemEntries(path).Length}\n");
             result.AppendLine($"Файлы: {Directory.GetFiles(path).Length}");
             result.AppendLine($"Папки: {Directory.GetDirectories(path).Length}");
+            result.AppendLine($"Общий размер: {stringSize}");
 
-            Debug.WriteLine(result.ToString());
             return result.ToString();
         }
         catch (ArgumentException ex) {
@@ -32,6 +35,24 @@ public class FileSystemPlugin {
         catch (Exception) {
             return "Неизвестная ошибка";
         }
+    }
+
+    private string ConversionToTheOptimalUnit(long bytes) => bytes switch {
+        < 1000 => $"{bytes} байт",
+        >= 1000 and < 1000000 => $"{bytes / 1000} килобайт",
+        >= 1000000 and < 1000000000 => $"{bytes / 1000000} мегабайт",
+        >= 1000000000 and < 1000000000000 => $"{bytes / 1000000000} гигабайт",
+        >= 1000000000000 and < 1000000000000000 => $"{bytes / 1000000000000} терабайт",
+        >= 1000000000000000 and < 1000000000000000000 => $"{bytes / 1000000000000000} петабайт",
+        _ => $"{bytes} байт"
+    };
+
+    private long RecursivelyGettingTheSize(DirectoryInfo dir) {
+        long size = dir.GetFiles().Sum(file => file.Length);
+
+        size += dir.GetDirectories().Sum(RecursivelyGettingTheSize);
+
+        return size;
     }
 
     private string GetFullFolderPath(string folderName) => folderName.ToLower() switch {
