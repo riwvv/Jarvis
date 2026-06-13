@@ -3,7 +3,7 @@ using System.Net.Http;
 using Jarvis.Configuration;
 using Jarvis.Interfaces;
 
-namespace Jarvis.Services;
+namespace Jarvis.Wrapper;
 
 public class OllamaHealthCheck(IConfiguration configuration) : IOllamaHealthCheck {
     public async Task<bool> IsOllamaRunningAsync() {

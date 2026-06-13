@@ -1,11 +1,11 @@
-﻿using Jarvis.Configuration;
-using Jarvis.Interfaces;
-using Jarvis.Plugins;
-using Jarvis.Services;
-using Microsoft.Extensions.Configuration;
+﻿using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.SemanticKernel;
 using System.Net.Http;
+using Jarvis.Configuration;
+using Jarvis.Interfaces;
+using Jarvis.Plugins;
+using Jarvis.Services;
 
 namespace Jarvis.Extensions;
 
@@ -36,6 +36,7 @@ public static class SemanticKernelExtensions {
         services.AddTransient<ClipboardPlugin>();
         services.AddTransient<WeatherPlugin>();
         services.AddTransient<MiniGamePlugin>();
+        services.AddTransient<FileSystemPlugin>();
 
         return services;
     }
@@ -52,6 +53,7 @@ public static class SemanticKernelExtensions {
         builder.Plugins.AddFromType<PrankPlugin>();
         builder.Plugins.AddFromType<ClipboardPlugin>();
         builder.Plugins.AddFromType<MiniGamePlugin>();
+        builder.Plugins.AddFromType<FileSystemPlugin>();
 
         builder.Plugins.AddFromObject(weatherPlugin);
         builder.Plugins.AddFromObject(new ReminderPlugin(reminderService));

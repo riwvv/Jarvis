@@ -3,7 +3,7 @@ using System.Windows;
 using Serilog;
 using Jarvis.Interfaces;
 
-namespace Jarvis.Services;
+namespace Jarvis.Wrapper;
 
 public class OllamaConnectionValidator(IOllamaHealthCheck healthCheck) : IOllamaConnectionValidator {
     public async Task<bool> ValidateWithRetryAsync() {
