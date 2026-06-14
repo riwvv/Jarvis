@@ -1,4 +1,5 @@
 ﻿using Microsoft.SemanticKernel;
+using System.Text.RegularExpressions;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Text;
@@ -46,18 +47,42 @@ public class FileSystemPlugin {
         if (string.IsNullOrWhiteSpace(fileName)) return "Укажите корректное название файла";
 
         try {
-            string path = Path.Combine(GetFullFolderPath(folderName), fileName);
-            if (!File.Exists(path)) return "Файл не найден";
+            //string path = Path.Combine(GetFullFolderPath(folderName), fileName);
+            //if (!File.Exists(path)) return "Файл не найден";
 
             // TODO добавить поиск по релевантному или регулярному совпадению
             // TODO проблемы: название на другом языке, пропущен символ, разный регистр, лишние символы (цифры, даты и т.д.)
 
-            Process.Start(new ProcessStartInfo(path) { UseShellExecute = true });
+            string path = GetFullFolderPath(folderName);
+            string executableFilePath = SearchForRelevantFile(path, fileName);
+
+            if (string.IsNullOrEmpty(executableFilePath)) return "Файл не найден";
+
+            Process.Start(new ProcessStartInfo(executableFilePath) { UseShellExecute = true });
             return $"Файл открыт";
         }
         catch (Exception) {
             return "Ошибка при открытии файла";
         }
+    }
+
+    private string SearchForRelevantFile(string path, string targetFileName) {
+        List<string> files = [..Directory.GetFiles(path)];
+        Regex regex = new($@"{FormattingFileName(targetFileName)}(\w*)", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+        Dictionary<string, double> results = [];
+
+        for (int i = 0; i < files.Count; i++) {
+            string fileName = files[i][(path.Length + 1)..];
+            if (regex.IsMatch(fileName))
+                results[files[i]] = GetPercentageOfRelevantSimilarity(fileName, targetFileName);
+        }
+
+        return results.Count == 0 ? string.Empty : results.OrderByDescending(x => x.Value).First().Key;
+    }
+
+    private string FormattingFileName(string target) {
+        int lastDot = target.LastIndexOf('.');
+        return lastDot == -1 ? target : target[..lastDot];
     }
 
     private double GetPercentageOfRelevantSimilarity(string source, string target) {
