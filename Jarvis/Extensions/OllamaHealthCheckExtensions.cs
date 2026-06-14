@@ -1,6 +1,6 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
 using Jarvis.Interfaces;
-using Jarvis.Services;
+using Jarvis.Wrapper;
 
 namespace Jarvis.Extensions;
 

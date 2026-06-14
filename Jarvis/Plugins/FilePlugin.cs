@@ -93,20 +93,20 @@ public class FilePlugin {
         }
     }
 
-    [KernelFunction]
-    [Description("Открывает файл с рабочего стола")]
-    public string OpenFile([Description("Имя файла на рабочем столе")] string fileName) {
-        try {
-            string fullPath = Path.Combine(DesktopPath, fileName);
+    //[KernelFunction]
+    //[Description("Открывает файл с рабочего стола")]
+    //public string OpenFile([Description("Имя файла на рабочем столе")] string fileName) {
+    //    try {
+    //        string fullPath = Path.Combine(DesktopPath, fileName);
 
-            if (!File.Exists(fullPath))
-                return $"Файл не найден: {fileName}";
+    //        if (!File.Exists(fullPath))
+    //            return $"Файл не найден: {fileName}";
 
-            Process.Start(new ProcessStartInfo(fullPath) { UseShellExecute = true });
-            return $"Открыто: {fileName}";
-        }
-        catch (Exception ex) {
-            return $"Ошибка открытия: {ex.Message}";
-        }
-    }
+    //        Process.Start(new ProcessStartInfo(fullPath) { UseShellExecute = true });
+    //        return $"Открыто: {fileName}";
+    //    }
+    //    catch (Exception ex) {
+    //        return $"Ошибка открытия: {ex.Message}";
+    //    }
+    //}
 }
