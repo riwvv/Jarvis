@@ -7,10 +7,12 @@ using System.IO;
 namespace Jarvis.Plugins;
 
 public class FileSystemPlugin {
+    private readonly List<string> _folderNames = ["downloads", "documents", "pictures", "videos", "music", "desktop"];
+
     [KernelFunction]
     [Description("Получает данные о папке")]
     public async Task<string> GetInfoFolder([Description("Название одной из папок: downloads, documents, pictures, videos, music, desktop")] string folderName) {
-        if (string.IsNullOrWhiteSpace(folderName)) return "Укажите корректное название папки";
+        if (!SpecialFolderValidation(folderName)) return "Укажите корректное название папки";
 
         try {
             var path = GetFullFolderPath(folderName);
@@ -18,7 +20,7 @@ public class FileSystemPlugin {
             if (!Directory.Exists(path)) return $"Папка {folderName} не найдена";
 
             var dir = new DirectoryInfo(path);
-            var size = RecursivelyGettingTheSize(dir);
+            var size = RecursivelyGettingTheDirectorySize(dir);
             var stringSize = ConversionToTheOptimalUnit(size);
 
             var result = new StringBuilder();
@@ -37,6 +39,29 @@ public class FileSystemPlugin {
         }
     }
 
+    [KernelFunction]
+    [Description("Открывает файл в указаной специальной папке")]
+    public async Task<string> OpenFileInFolder([Description("Название одной из папок: downloads, documents, pictures, videos, music, desktop")] string folderName, [Description("Название файла")] string fileName) {
+        if (!SpecialFolderValidation(folderName)) return "Укажите корректное название папки";
+        if (string.IsNullOrWhiteSpace(fileName)) return "Укажите корректное название файла";
+
+        try {
+            string path = Path.Combine(GetFullFolderPath(folderName), fileName);
+            if (!File.Exists(path)) return "Файл не найден";
+
+            // TODO добавить поиск по релевантному или регулярному совпадению
+            // TODO проблемы: название на другом языке, пропущен символ, разный регистр, лишние символы (цифры, даты и т.д.)
+
+            Process.Start(new ProcessStartInfo(path) { UseShellExecute = true });
+            return $"Файл открыт";
+        }
+        catch (Exception) {
+            return "Ошибка при открытии файла";
+        }
+    }
+
+    private bool SpecialFolderValidation(string folder) => !string.IsNullOrWhiteSpace(folder) && _folderNames.Contains(folder.ToLower());
+
     private string ConversionToTheOptimalUnit(long bytes) => bytes switch {
         < 1000 => $"{bytes} байт",
         >= 1000 and < 1000000 => $"{bytes / 1000} килобайт",
@@ -47,10 +72,10 @@ public class FileSystemPlugin {
         _ => $"{bytes} байт"
     };
 
-    private long RecursivelyGettingTheSize(DirectoryInfo dir) {
+    private long RecursivelyGettingTheDirectorySize(DirectoryInfo dir) {
         long size = dir.GetFiles().Sum(file => file.Length);
 
-        size += dir.GetDirectories().Sum(RecursivelyGettingTheSize);
+        size += dir.GetDirectories().Sum(RecursivelyGettingTheDirectorySize);
 
         return size;
     }
