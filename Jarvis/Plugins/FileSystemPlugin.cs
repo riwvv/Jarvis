@@ -60,6 +60,36 @@ public class FileSystemPlugin {
         }
     }
 
+    private double GetPercentageOfRelevantSimilarity(string source, string target) {
+        int distance = GetLevenshteinDistanceForDesiredFileName(source, target);
+        int maxLength = Math.Max(source.Length, target.Length);
+
+        if (maxLength == 0) return 100.0d;
+
+        double result = (1.0d - (Convert.ToDouble(distance) / maxLength)) * 100.0d;
+
+        return result;
+    }
+
+    private int GetLevenshteinDistanceForDesiredFileName(string source, string target) {
+        if (string.IsNullOrEmpty(source)) return string.IsNullOrEmpty(target) ? 0 : target.Length;
+        if (string.IsNullOrEmpty(target)) return source.Length;
+
+        int[,] d = new int[source.Length + 1, target.Length + 1];
+
+        for (int i = 0; i <= source.Length; d[i, 0] = i++) ;
+        for (int j = 0; j <= target.Length; d[0, j] = j++) ;
+
+        for (int i = 1; i <= source.Length; i++) {
+            for (int j = 1; j <= target.Length; j++) {
+                int cost = (target[j - 1] == source[i - 1]) ? 0 : 1;
+                d[i, j] = Math.Min(Math.Min(d[i - 1, j] + 1, d[i, j - 1] + 1), d[i - 1, j - 1] + cost);
+            }
+        }
+
+        return d[source.Length, target.Length];
+    }
+
     private bool SpecialFolderValidation(string folder) => !string.IsNullOrWhiteSpace(folder) && _folderNames.Contains(folder.ToLower());
 
     private string ConversionToTheOptimalUnit(long bytes) => bytes switch {
