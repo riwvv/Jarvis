@@ -103,12 +103,14 @@ public class FileSystemPlugin {
         return results.Count == 0 ? string.Empty : results.OrderByDescending(x => x.Value).First().Key;
     }
 
-    private string FormattingFileName(string target) {
+    private bool SpecialFolderValidation(string folder) => !string.IsNullOrWhiteSpace(folder) && _folderNames.Contains(folder.ToLower());
+
+    private static string FormattingFileName(string target) {
         int lastDot = target.LastIndexOf('.');
         return lastDot == -1 ? target : target[..lastDot];
     }
 
-    private double GetPercentageOfRelevantSimilarity(string source, string target) {
+    private static double GetPercentageOfRelevantSimilarity(string source, string target) {
         int distance = GetLevenshteinDistanceForDesiredFileName(source, target);
         int maxLength = Math.Max(source.Length, target.Length);
 
@@ -119,7 +121,7 @@ public class FileSystemPlugin {
         return result;
     }
 
-    private int GetLevenshteinDistanceForDesiredFileName(string source, string target) {
+    private static int GetLevenshteinDistanceForDesiredFileName(string source, string target) {
         if (string.IsNullOrEmpty(source)) return string.IsNullOrEmpty(target) ? 0 : target.Length;
         if (string.IsNullOrEmpty(target)) return source.Length;
 
@@ -138,9 +140,7 @@ public class FileSystemPlugin {
         return d[source.Length, target.Length];
     }
 
-    private bool SpecialFolderValidation(string folder) => !string.IsNullOrWhiteSpace(folder) && _folderNames.Contains(folder.ToLower());
-
-    private string ConversionToTheOptimalUnit(long bytes) => bytes switch {
+    private static string ConversionToTheOptimalUnit(long bytes) => bytes switch {
         < 1000 => $"{bytes} байт",
         >= 1000 and < 1000000 => $"{bytes / 1000} килобайт",
         >= 1000000 and < 1000000000 => $"{bytes / 1000000} мегабайт",
@@ -150,7 +150,7 @@ public class FileSystemPlugin {
         _ => $"{bytes} байт"
     };
 
-    private long RecursivelyGettingTheDirectorySize(DirectoryInfo dir) {
+    private static long RecursivelyGettingTheDirectorySize(DirectoryInfo dir) {
         long size = dir.GetFiles().Sum(file => file.Length);
 
         size += dir.GetDirectories().Sum(RecursivelyGettingTheDirectorySize);
@@ -158,7 +158,7 @@ public class FileSystemPlugin {
         return size;
     }
 
-    private string GetFullFolderPath(string folderName) => folderName.ToLower() switch {
+    private static string GetFullFolderPath(string folderName) => folderName.ToLower() switch {
         "downloads" => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads"),
         "documents" => Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
         "desktop" => Environment.GetFolderPath(Environment.SpecialFolder.Desktop),
