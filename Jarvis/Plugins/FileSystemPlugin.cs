@@ -9,6 +9,18 @@ namespace Jarvis.Plugins;
 
 public class FileSystemPlugin {
     private readonly List<string> _folderNames = ["downloads", "documents", "pictures", "videos", "music", "desktop"];
+    private readonly Dictionary<string, List<string>> _fileTypes = new() {
+        { "текстовик", [".txt"] },
+        { "текстовый документ", [".txt"] },
+        { "фото", [".png", ".jpg", ".jpeg"] },
+        { "фотка", [".png", ".jpg", ".jpeg"] },
+        { "видео", [".mp4", ".mkv"] },
+        { "видос", [".mp4", ".mkv"] },
+        { "презентация", [".pptx", ".ppt", ".pdf"] },
+        { "ворд", [".docx"] },
+        { "документ", [".docx"] },
+        { "таблица", [".xlsx", ".ods", ".csv"] }
+    };
 
     [KernelFunction]
     [Description("Получает данные о папке")]
@@ -42,19 +54,13 @@ public class FileSystemPlugin {
 
     [KernelFunction]
     [Description("Открывает файл в указаной специальной папке")]
-    public async Task<string> OpenFileInFolder([Description("Название одной из папок: downloads, documents, pictures, videos, music, desktop")] string folderName, [Description("Название файла")] string fileName) {
+    public async Task<string> OpenFileInFolder([Description("Название одной из папок: downloads, documents, pictures, videos, music, desktop")] string folderName, [Description("Название файла")] string fileName, [Description("Тип файла, например: текстовик, презентация, фото, видео и т.д. (если указан, но не обязателен, иначе оставить как null)")] string? fileType = null) {
         if (!SpecialFolderValidation(folderName)) return "Укажите корректное название папки";
         if (string.IsNullOrWhiteSpace(fileName)) return "Укажите корректное название файла";
 
         try {
-            //string path = Path.Combine(GetFullFolderPath(folderName), fileName);
-            //if (!File.Exists(path)) return "Файл не найден";
-
-            // TODO добавить поиск по релевантному или регулярному совпадению
-            // TODO проблемы: название на другом языке, пропущен символ, разный регистр, лишние символы (цифры, даты и т.д.)
-
             string path = GetFullFolderPath(folderName);
-            string executableFilePath = SearchForRelevantFile(path, fileName);
+            string executableFilePath = SearchForRelevantFile(path, fileName, fileType);
 
             if (string.IsNullOrEmpty(executableFilePath)) return "Файл не найден";
 
@@ -66,9 +72,26 @@ public class FileSystemPlugin {
         }
     }
 
-    private string SearchForRelevantFile(string path, string targetFileName) {
+    private List<string>? GetRecognizedFileType(string? type = null) {
+        if (type == null || string.IsNullOrWhiteSpace(type))
+            return null;
+
+        type = type.ToLower();
+        foreach (var (key, value) in _fileTypes) {
+            if (type == key)
+                return value;
+        }
+
+        return null;
+    }
+
+    private string SearchForRelevantFile(string path, string targetFileName, string? targetFileType = null) {
         List<string> files = [..Directory.GetFiles(path)];
-        Regex regex = new($@"{FormattingFileName(targetFileName)}(\w*)", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+        List<string>? targetFileTypes = GetRecognizedFileType(targetFileType);
+        string patern = targetFileTypes == null ? @$"{FormattingFileName(targetFileName)}(\w*)" : @$"{FormattingFileName(targetFileName)}(\w*){string.Join("|", targetFileTypes!.Select(Regex.Escape))}";
+        Regex regex = new(patern, RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
         Dictionary<string, double> results = [];
 
         for (int i = 0; i < files.Count; i++) {
