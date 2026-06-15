@@ -1,4 +1,5 @@
-﻿using Microsoft.SemanticKernel;
+﻿using Microsoft.VisualBasic.FileIO;
+using Microsoft.SemanticKernel;
 using System.Text.RegularExpressions;
 using System.ComponentModel;
 using System.Diagnostics;
@@ -25,12 +26,12 @@ public class FileSystemPlugin {
     [KernelFunction]
     [Description("Получает данные о папке")]
     public async Task<string> GetInfoFolder([Description("Название одной из папок: downloads, documents, pictures, videos, music, desktop")] string folderName) {
-        if (!SpecialFolderValidation(folderName)) return "Укажите корректное название папки";
+        if (!SpecialFolderValidation(folderName)) return "ERROR: Укажите корректное название папки";
 
         try {
             var path = GetFullFolderPath(folderName);
 
-            if (!Directory.Exists(path)) return $"Папка {folderName} не найдена";
+            if (!Directory.Exists(path)) return $"ERROR: Папка {folderName} не найдена";
 
             var dir = new DirectoryInfo(path);
             var size = RecursivelyGettingTheDirectorySize(dir);
@@ -42,33 +43,64 @@ public class FileSystemPlugin {
             result.AppendLine($"Папки: {Directory.GetDirectories(path).Length}");
             result.AppendLine($"Общий размер: {stringSize}");
 
-            return result.ToString();
+            return $"DONE: {result.ToString()}";
         }
         catch (ArgumentException ex) {
             return ex.Message;
         }
         catch (Exception) {
-            return "Неизвестная ошибка";
+            return "ERROR: Неизвестная ошибка";
         }
     }
 
     [KernelFunction]
     [Description("Открывает файл в указаной специальной папке")]
     public async Task<string> OpenFileInFolder([Description("Название одной из папок: downloads, documents, pictures, videos, music, desktop")] string folderName, [Description("Название файла")] string fileName, [Description("Тип файла, например: текстовик, презентация, фото, видео и т.д. (если указан, но не обязателен, иначе оставить как null)")] string? fileType = null) {
-        if (!SpecialFolderValidation(folderName)) return "Укажите корректное название папки";
-        if (string.IsNullOrWhiteSpace(fileName)) return "Укажите корректное название файла";
+        if (!SpecialFolderValidation(folderName)) return "ERROR: Укажите корректное название папки";
+        if (string.IsNullOrWhiteSpace(fileName)) return "ERROR: Укажите корректное название файла";
 
         try {
             string path = GetFullFolderPath(folderName);
             string executableFilePath = SearchForRelevantFile(path, fileName, fileType);
 
-            if (string.IsNullOrEmpty(executableFilePath)) return "Файл не найден";
+            if (string.IsNullOrEmpty(executableFilePath)) return "ERROR: Файл не найден";
 
             Process.Start(new ProcessStartInfo(executableFilePath) { UseShellExecute = true });
-            return $"Файл открыт";
+            return $"DONE: Файл открыт";
         }
         catch (Exception) {
-            return "Ошибка при открытии файла";
+            return "ERROR: Ошибка при открытии файла";
+        }
+    }
+
+    [KernelFunction]
+    [Description("Удаляет файл в указаной специальной папке")]
+    public async Task<string> DeleteFileInFolder([Description("Название одной из папок: downloads, documents, pictures, videos, music, desktop")] string folderName, [Description("Название файла")] string fileName, [Description("Тип файла, например: текстовик, презентация, фото, видео и т.д. (если указан, но не обязателен, иначе оставить как null)")] string? fileType = null) {
+        if (!SpecialFolderValidation(folderName)) return "ERROR: Укажите корректное название папки";
+        if (string.IsNullOrWhiteSpace(fileName)) return "ERROR: Укажите корректное название файла";
+
+        try {
+            string path = GetFullFolderPath(folderName);
+            string deletedFilePath = SearchForRelevantFile(path, fileName, fileType);
+
+            if (string.IsNullOrEmpty(deletedFilePath)) return "ERROR: Файл не найден";
+            if (!File.Exists(deletedFilePath)) return "ERROR: Файла не существует";
+
+            DialogResult confirmation = MessageBox.Show(
+                $"Вы уверены, что хотите удалить файл?\n{deletedFilePath}",
+                "Подтверждение действия",
+                MessageBoxButtons.YesNo,
+                MessageBoxIcon.Question);
+
+            if (confirmation == DialogResult.Yes) {
+                FileSystem.DeleteFile(deletedFilePath, UIOption.OnlyErrorDialogs, RecycleOption.SendToRecycleBin);
+                return "DONE: Файл успешно удалён";
+            }
+
+            return "WARNING: Удаление файла было отменено";
+        }
+        catch (Exception) {
+            return "ERROR: Ошибка при удалении файла";
         }
     }
 
