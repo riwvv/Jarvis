@@ -104,6 +104,35 @@ public class FileSystemPlugin {
         }
     }
 
+    [KernelFunction]
+    [Description("Перемещает файл из одной папки в другую (в рамках специальных папок), например: перемести текстовик тест из загрузок на рабочий стол")]
+    public async Task<string> MoveFileFromFolderToFolder(
+        [Description("Название начальной папки, одной из: downloads, documents, pictures, videos, music, desktop")] string startFolder, 
+        [Description("Название конечной папки, одной из: downloads, documents, pictures, videos, music, desktop")] string finishFolder, 
+        [Description("Название файла")] string fileName, 
+        [Description("Тип файла, например: текстовик, презентация, фото, видео и т.д. (если указан, но не обязателен, иначе оставить как null)")] string? fileType = null) {
+        if (!SpecialFolderValidation(startFolder)) return "ERROR: Укажите корректное название исходной папки";
+        if (!SpecialFolderValidation(finishFolder)) return "ERROR: Укажите корректное название конечной папки";
+        if (string.IsNullOrWhiteSpace(fileName)) return "ERROR: Укажите корректное название файла";
+
+        try {
+            string movedFilePath = SearchForRelevantFile(GetFullFolderPath(startFolder), fileName, fileType);
+            string foundFileName = GetFullFileNameFromPath(movedFilePath);
+
+            string finishPath = GetFullFolderPath(finishFolder);
+            string finishFilePath = Path.Combine(finishPath, foundFileName);
+
+            if (File.Exists(finishFilePath)) return "WARNING: Файл с таким названием уже существует в папке назначения";
+
+            File.SetAttributes(movedFilePath, FileAttributes.Normal);
+            File.Move(movedFilePath, finishFilePath);
+            return "DONE: Файл успешно перемещён";
+        }
+        catch (Exception) {
+            return "ERROR: Ошибка при перемещении файла";
+        }
+    }
+
     private List<string>? GetRecognizedFileType(string? type = null) {
         if (type == null || string.IsNullOrWhiteSpace(type))
             return null;
@@ -140,6 +169,11 @@ public class FileSystemPlugin {
     private static string FormattingFileName(string target) {
         int lastDot = target.LastIndexOf('.');
         return lastDot == -1 ? target : target[..lastDot];
+    }
+
+    private static string GetFullFileNameFromPath(string path) {
+        int lastSlash = path.LastIndexOf(@"\");
+        return path[(lastSlash + 1)..];
     }
 
     private static double GetPercentageOfRelevantSimilarity(string source, string target) {
