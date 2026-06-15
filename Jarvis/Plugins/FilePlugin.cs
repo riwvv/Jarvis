@@ -1,6 +1,5 @@
 ﻿using Microsoft.SemanticKernel;
 using System.ComponentModel;
-using System.Diagnostics;
 using System.IO;
 using System.Text;
 
@@ -75,38 +74,4 @@ public class FilePlugin {
             return $"Ошибка: {ex.Message}";
         }
     }
-
-    [KernelFunction]
-    [Description("Удаляет файл с рабочего стола")]
-    public string DeleteFile([Description("Имя файла на рабочем столе")] string fileName) {
-        try {
-            string fullPath = Path.Combine(DesktopPath, fileName);
-
-            if (!File.Exists(fullPath))
-                return $"Файл не найден: {fileName}";
-
-            File.Delete(fullPath);
-            return $"Файл удалён: {fileName}";
-        }
-        catch (Exception ex) {
-            return $"Ошибка удаления: {ex.Message}";
-        }
-    }
-
-    //[KernelFunction]
-    //[Description("Открывает файл с рабочего стола")]
-    //public string OpenFile([Description("Имя файла на рабочем столе")] string fileName) {
-    //    try {
-    //        string fullPath = Path.Combine(DesktopPath, fileName);
-
-    //        if (!File.Exists(fullPath))
-    //            return $"Файл не найден: {fileName}";
-
-    //        Process.Start(new ProcessStartInfo(fullPath) { UseShellExecute = true });
-    //        return $"Открыто: {fileName}";
-    //    }
-    //    catch (Exception ex) {
-    //        return $"Ошибка открытия: {ex.Message}";
-    //    }
-    //}
 }
