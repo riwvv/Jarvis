@@ -1,9 +1,9 @@
-﻿using Microsoft.VisualBasic.FileIO;
-using Microsoft.SemanticKernel;
+﻿using Microsoft.SemanticKernel;
+using Microsoft.VisualBasic.FileIO;
 using System.Text.RegularExpressions;
 using System.ComponentModel;
 using System.Diagnostics;
-using System.Text;
+using System.Text.Json;
 using System.IO;
 
 namespace Jarvis.Plugins;
@@ -26,65 +26,167 @@ public class FileSystemPlugin {
     [KernelFunction]
     [Description("Получает данные о папке")]
     public async Task<string> GetInfoFolder([Description("Название одной из папок: downloads, documents, pictures, videos, music, desktop")] string folderName) {
-        if (!SpecialFolderValidation(folderName)) return "ERROR: Укажите корректное название папки";
+        if (!SpecialFolderValidation(folderName)) {
+            var error = new {
+                status = "ERROR",
+                cause = folderName,
+                description = $"Указано не корректное название папки, не соответствует поддерживаемому списку: {_folderNames}"
+            };
+
+            return JsonSerializer.Serialize(error);
+        }
 
         try {
             var path = GetFullFolderPath(folderName);
 
-            if (!Directory.Exists(path)) return $"ERROR: Папка {folderName} не найдена";
+            if (!Directory.Exists(path)) {
+                var error = new {
+                    status = "ERROR",
+                    cause = path,
+                    description = $"Папка {folderName} по пути {path} не найдена"
+                };
+
+                return JsonSerializer.Serialize(error);
+            }
 
             var dir = new DirectoryInfo(path);
             var size = RecursivelyGettingTheDirectorySize(dir);
             var stringSize = ConversionToTheOptimalUnit(size);
 
-            var result = new StringBuilder();
-            result.AppendLine($"В папке {folderName} объектов найдено: {Directory.GetFileSystemEntries(path).Length}\n");
-            result.AppendLine($"Файлы: {Directory.GetFiles(path).Length}");
-            result.AppendLine($"Папки: {Directory.GetDirectories(path).Length}");
-            result.AppendLine($"Общий размер: {stringSize}");
+            var result = new {
+                status = "DONE",
+                message = $"В папке {folderName} {Directory.GetFileSystemEntries(path).Length} объектов, размер {stringSize}",
+                totalObject = Directory.GetFileSystemEntries(path).Length,
+                amountFiles = Directory.GetFiles(path).Length,
+                files = Directory.GetFiles(path),
+                amountDirectories = Directory.GetDirectories(path).Length,
+                directories = Directory.GetDirectories(path),
+                totalSize = stringSize
+            };
 
-            return $"DONE: {result.ToString()}";
+            return JsonSerializer.Serialize(result);
         }
         catch (ArgumentException ex) {
-            return ex.Message;
+            var error = new {
+                status = "ERROR",
+                cause = "ArgumentException",
+                description = ex.Message
+            };
+            return JsonSerializer.Serialize(error);
         }
-        catch (Exception) {
-            return "ERROR: Неизвестная ошибка";
+        catch (Exception ex) {
+            var error = new {
+                status = "ERROR",
+                cause = "Exception",
+                description = ex.Message
+            };
+            return JsonSerializer.Serialize(error);
         }
     }
 
     [KernelFunction]
     [Description("Открывает файл в указаной специальной папке")]
     public async Task<string> OpenFileInFolder([Description("Название одной из папок: downloads, documents, pictures, videos, music, desktop")] string folderName, [Description("Название файла")] string fileName, [Description("Тип файла, например: текстовик, презентация, фото, видео и т.д. (если указан, но не обязателен, иначе оставить как null)")] string? fileType = null) {
-        if (!SpecialFolderValidation(folderName)) return "ERROR: Укажите корректное название папки";
-        if (string.IsNullOrWhiteSpace(fileName)) return "ERROR: Укажите корректное название файла";
+        if (!SpecialFolderValidation(folderName)) {
+            var error = new {
+                status = "ERROR",
+                cause = folderName,
+                description = $"Указано не корректное название папки, не соответствует поддерживаемому списку: {_folderNames}"
+            };
+
+            return JsonSerializer.Serialize(error);
+        }
+        if (string.IsNullOrWhiteSpace(fileName)) {
+            var error = new {
+                status = "ERROR",
+                cause = fileName,
+                description = $"Указано не корректное название файла"
+            };
+
+            return JsonSerializer.Serialize(error);
+        }
 
         try {
             string path = GetFullFolderPath(folderName);
             string executableFilePath = SearchForRelevantFile(path, fileName, fileType);
 
-            if (string.IsNullOrEmpty(executableFilePath)) return "ERROR: Файл не найден";
+            if (string.IsNullOrEmpty(executableFilePath)) {
+                var error = new {
+                    status = "ERROR",
+                    cause = executableFilePath,
+                    description = $"Файл не найден"
+                };
+
+                return JsonSerializer.Serialize(error);
+            }
 
             Process.Start(new ProcessStartInfo(executableFilePath) { UseShellExecute = true });
-            return $"DONE: Файл открыт";
+
+            string name = GetFullFileNameFromPath(executableFilePath);
+            var result = new {
+                status = "DONE",
+                message = $"Файл {name} успешно открыт",
+                openedFile = name,
+                fullFilePath = executableFilePath
+            };
+
+            return JsonSerializer.Serialize(result);
         }
-        catch (Exception) {
-            return "ERROR: Ошибка при открытии файла";
+        catch (Exception ex) {
+            var error = new {
+                status = "ERROR",
+                cause = "Exception",
+                description = ex.Message
+            };
+
+            return JsonSerializer.Serialize(error);
         }
     }
 
     [KernelFunction]
     [Description("Удаляет файл в указаной специальной папке")]
     public async Task<string> DeleteFileInFolder([Description("Название одной из папок: downloads, documents, pictures, videos, music, desktop")] string folderName, [Description("Название файла")] string fileName, [Description("Тип файла, например: текстовик, презентация, фото, видео и т.д. (если указан, но не обязателен, иначе оставить как null)")] string? fileType = null) {
-        if (!SpecialFolderValidation(folderName)) return "ERROR: Укажите корректное название папки";
-        if (string.IsNullOrWhiteSpace(fileName)) return "ERROR: Укажите корректное название файла";
+        if (!SpecialFolderValidation(folderName)) {
+            var error = new {
+                status = "ERROR",
+                cause = folderName,
+                description = $"Указано не корректное название папки, не соответствует поддерживаемому списку: {_folderNames}"
+            };
+
+            return JsonSerializer.Serialize(error);
+        }
+        if (string.IsNullOrWhiteSpace(fileName)) {
+            var error = new {
+                status = "ERROR",
+                cause = fileName,
+                description = "Указано не корректное название файла"
+            };
+
+            return JsonSerializer.Serialize(error);
+        }
 
         try {
             string path = GetFullFolderPath(folderName);
             string deletedFilePath = SearchForRelevantFile(path, fileName, fileType);
 
-            if (string.IsNullOrEmpty(deletedFilePath)) return "ERROR: Файл не найден";
-            if (!File.Exists(deletedFilePath)) return "ERROR: Файла не существует";
+            if (string.IsNullOrEmpty(deletedFilePath)) {
+                var errorPath = new {
+                    status = "ERROR",
+                    cause = deletedFilePath,
+                    description = "Не корректный путь файла"
+                };
+
+                return JsonSerializer.Serialize(errorPath);
+            }
+            if (!File.Exists(deletedFilePath)) {
+                var errorExists = new {
+                    status = "ERROR",
+                    cause = deletedFilePath,
+                    description = "Файл не найден"
+                };
+
+                return JsonSerializer.Serialize(errorExists);
+            }
 
             DialogResult confirmation = MessageBox.Show(
                 $"Вы уверены, что хотите удалить файл?\n{deletedFilePath}",
@@ -94,13 +196,34 @@ public class FileSystemPlugin {
 
             if (confirmation == DialogResult.Yes) {
                 FileSystem.DeleteFile(deletedFilePath, UIOption.OnlyErrorDialogs, RecycleOption.SendToRecycleBin);
-                return "DONE: Файл успешно удалён";
+
+                string name = GetFullFileNameFromPath(deletedFilePath);
+                var result = new {
+                    status = "DONE",
+                    message = $"Файл {name} успешно удалён",
+                    deletedFile = name,
+                    fullFilePath = deletedFilePath
+                };
+
+                return JsonSerializer.Serialize(result);
             }
 
-            return "WARNING: Удаление файла было отменено";
+            var error = new {
+                status = "WARNING",
+                cause = confirmation,
+                description = "Пользователь нажал отказ на удаление"
+            };
+
+            return JsonSerializer.Serialize(error);
         }
-        catch (Exception) {
-            return "ERROR: Ошибка при удалении файла";
+        catch (Exception ex) {
+            var error = new {
+                status = "ERROR",
+                cause = "Exception",
+                description = ex.Message
+            };
+
+            return JsonSerializer.Serialize(error);
         }
     }
 
@@ -111,9 +234,33 @@ public class FileSystemPlugin {
         [Description("Название конечной папки, одной из: downloads, documents, pictures, videos, music, desktop")] string finishFolder, 
         [Description("Название файла")] string fileName, 
         [Description("Тип файла, например: текстовик, презентация, фото, видео и т.д. (если указан, но не обязателен, иначе оставить как null)")] string? fileType = null) {
-        if (!SpecialFolderValidation(startFolder)) return "ERROR: Укажите корректное название исходной папки";
-        if (!SpecialFolderValidation(finishFolder)) return "ERROR: Укажите корректное название конечной папки";
-        if (string.IsNullOrWhiteSpace(fileName)) return "ERROR: Укажите корректное название файла";
+        if (!SpecialFolderValidation(startFolder)) {
+            var error = new {
+                status = "ERROR",
+                cause = startFolder,
+                description = $"Указано не корректное название папки, не соответствует поддерживаемому списку: {_folderNames}"
+            };
+
+            return JsonSerializer.Serialize(error);
+        }
+        if (!SpecialFolderValidation(finishFolder)) {
+            var error = new {
+                status = "ERROR",
+                cause = finishFolder,
+                description = $"Указано не корректное название папки, не соответствует поддерживаемому списку: {_folderNames}"
+            };
+
+            return JsonSerializer.Serialize(error);
+        }
+        if (string.IsNullOrWhiteSpace(fileName)) {
+            var error = new {
+                status = "ERROR",
+                cause = fileName,
+                description = "Указано не корректное название файла"
+            };
+
+            return JsonSerializer.Serialize(error);
+        }
 
         try {
             string movedFilePath = SearchForRelevantFile(GetFullFolderPath(startFolder), fileName, fileType);
@@ -122,14 +269,37 @@ public class FileSystemPlugin {
             string finishPath = GetFullFolderPath(finishFolder);
             string finishFilePath = Path.Combine(finishPath, foundFileName);
 
-            if (File.Exists(finishFilePath)) return "WARNING: Файл с таким названием уже существует в папке назначения";
+            if (File.Exists(finishFilePath)) {
+                var error = new {
+                    status = "WARNING",
+                    cause = finishFilePath,
+                    description = "Файл с таким названием уже существует в папке назначения"
+                };
+
+                return JsonSerializer.Serialize(error);
+            }
 
             File.SetAttributes(movedFilePath, FileAttributes.Normal);
             File.Move(movedFilePath, finishFilePath);
-            return "DONE: Файл успешно перемещён";
+
+            var result = new {
+                status = "DONE",
+                message = $"Файл {foundFileName} успешно перемещён",
+                movedFile = foundFileName,
+                originalPath = movedFilePath,
+                finitePath = finishFilePath
+            };
+
+            return JsonSerializer.Serialize(result);
         }
-        catch (Exception) {
-            return "ERROR: Ошибка при перемещении файла";
+        catch (Exception ex) {
+            var error = new {
+                status = "ERROR",
+                cause = "Exception",
+                description = ex.Message
+            };
+
+            return JsonSerializer.Serialize(error);
         }
     }
 
