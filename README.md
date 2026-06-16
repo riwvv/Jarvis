@@ -1,4 +1,4 @@
-# 🎙️ Jarvis — Голосовой ассистент на C# с локальным ИИ
+# 🎙️ Jarvis — Локальный голосовой ИИ агент на C#
 
 [![GitHub stars](https://img.shields.io/github/stars/riwvv/Jarvis)](https://github.com/riwvv/Jarvis/stargazers)
 [![License](https://img.shields.io/badge/License-All%20Rights%20Reserved-red)](LICENSE)
@@ -7,7 +7,7 @@
 [![.NET](https://img.shields.io/badge/.NET-10.0-purple)](https://dotnet.microsoft.com/)
 [![Ollama](https://img.shields.io/badge/Ollama-0.1.17+-orange)](https://ollama.com)
 
-> **Полностью локальный** голосовой помощник для Windows. Работает офлайн, понимает русскую речь, управляет приложениями и системой.  
+> **Полностью локальный** голосовой ИИ агент для Windows. Работает офлайн, понимает русскую речь, управляет приложениями и системой.  
 > 🛡️ **Ничего не уходит в облако — полная приватность.**
 
 Jarvis превращает ваш компьютер в персонального помощника. Откройте браузер, включите музыку, создайте файл или спросите о прошлом — всё это одной фразой.
