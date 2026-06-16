@@ -303,6 +303,136 @@ public class FileSystemPlugin {
         }
     }
 
+    [KernelFunction]
+    [Description("Создание файла в специальной папке с указанным типом (если не указан, по умолчанию текстовик)")]
+    public async Task<string> CreateNewFileInSpecialFolder([Description("Название одной из специальных папок: downloads, documents, pictures, videos, music, desktop")] string folderName,
+        [Description("Название файла (без расширения)")] string fileName,
+        [Description("Тип файла, например: текстовик, презентация, фото, видео и т.д.")] string? fileType = null) {
+        if (!SpecialFolderValidation(folderName)) {
+            var error = new {
+                status = "ERROR",
+                cause = folderName,
+                description = $"Некорректное название папки. Поддерживаемые: {string.Join(", ", _folderNames)}"
+            };
+
+            return JsonSerializer.Serialize(error);
+        }
+        if (string.IsNullOrWhiteSpace(fileName)) {
+            var error = new {
+                status = "ERROR",
+                cause = fileName,
+                description = "Название файла не может быть пустым"
+            };
+
+            return JsonSerializer.Serialize(error);
+        }
+
+        char[] invalidChars = Path.GetInvalidFileNameChars();
+        if (fileName.Any(c => invalidChars.Contains(c))) {
+            var error = new {
+                status = "ERROR",
+                cause = fileName,
+                description = $"Имя файла содержит недопустимые символы: {string.Join(", ", fileName.Where(c => invalidChars.Contains(c)).Distinct())}"
+            };
+
+            return JsonSerializer.Serialize(error);
+        }
+
+        try {
+            string primaryPath = GetFullFolderPath(folderName);
+
+            if (!Directory.Exists(primaryPath)) {
+                var error = new {
+                    status = "ERROR",
+                    cause = primaryPath,
+                    description = $"Папка {folderName} не найдена по пути {primaryPath}"
+                };
+
+                return JsonSerializer.Serialize(error);
+            }
+
+            string extension;
+            if (!string.IsNullOrEmpty(fileType)) {
+                if (TryGetRecognizedFileType(fileType, out string? resultType))
+                    extension = resultType!;
+                else
+                    extension = fileType.StartsWith(".") ? fileType : "." + fileType;
+            }
+            else
+                extension = _fileTypes.TryGetValue("текстовик", out var types) && types.Any() ? types.First() : ".txt";
+
+            string cleanFileName = Path.GetFileNameWithoutExtension(fileName);
+            string fullFileName = cleanFileName + extension;
+            string fullPath = Path.Combine(primaryPath, fullFileName);
+
+            if (File.Exists(fullPath)) {
+                var warning = new {
+                    status = "WARNING",
+                    cause = fullPath,
+                    description = $"Файл '{fullFileName}' уже существует в папке {folderName}"
+                };
+
+                return JsonSerializer.Serialize(warning);
+            }
+
+            using FileStream fs = File.Create(fullPath);
+
+            var result = new {
+                status = "DONE",
+                message = $"Файл '{fullFileName}' успешно создан в папке '{folderName}'",
+                name = cleanFileName,
+                folder = primaryPath,
+                fullFileName = fullFileName,
+                fullFilePath = fullPath,
+                fileType = extension
+            };
+
+            return JsonSerializer.Serialize(result);
+        }
+        catch (UnauthorizedAccessException ex) {
+            var error = new {
+                status = "ERROR",
+                cause = "AccessDenied",
+                description = $"Нет прав на создание файла в папке {folderName}: {ex.Message}"
+            };
+            return JsonSerializer.Serialize(error);
+        }
+        catch (IOException ex) {
+            var error = new {
+                status = "ERROR",
+                cause = "IOError",
+                description = $"Ошибка ввода-вывода: {ex.Message}"
+            };
+            return JsonSerializer.Serialize(error);
+        }
+        catch (Exception ex) {
+            var error = new {
+                status = "ERROR",
+                cause = "UnexpectedError",
+                description = $"Произошла непредвиденная ошибка при создании файла: {ex.Message}"
+            };
+            return JsonSerializer.Serialize(error);
+        }
+    }
+
+    private bool TryGetRecognizedFileType(string? type, out string? outputType) {
+        outputType = null;
+
+        if (string.IsNullOrWhiteSpace(type))
+            return false;
+
+        type = type.Trim().ToLower();
+
+        foreach (var kvp in _fileTypes) {
+            if (type == kvp.Key) {
+                outputType = kvp.Value.FirstOrDefault();
+                return outputType != null;
+            }
+        }
+
+        return false;
+    }
+
     private List<string>? GetRecognizedFileType(string? type = null) {
         if (type == null || string.IsNullOrWhiteSpace(type))
             return null;
