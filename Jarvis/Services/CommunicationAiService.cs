@@ -2,6 +2,7 @@
 using Microsoft.SemanticKernel.ChatCompletion;
 using Microsoft.Extensions.Logging;
 using Microsoft.SemanticKernel;
+using System.Text.Json;
 using Jarvis.Interfaces;
 
 namespace Jarvis.Services;
@@ -24,31 +25,21 @@ public class CommunicationAiService : IDisposable {
     private const int REMIDER_INTERVAL = 10;
     private int _messageCount = 0;
 
-    private readonly string _systemPrompt = @$"Ты — Джарвис, голосовой ассистент для Windows.
+    private readonly string _systemPrompt = @$"Ты — Джарвис, голосовой ИИ агент для Windows.
 
-        У тебя есть инструменты (плагины) для выполнения действий:
-        - ApplicationPlugin: запуск программ и игр
-        - BrowserPlugin: открытие сайтов
-        - SystemAudioPlugin: управление громкостью
-        - MediaPlayerPlugin: управление музыкой
-        - SystemCommandPlugin: системные команды
-        - FilePlugin: работа с файлами
-        - PrankPlugin: шутки
-        - RagPlugin: долговременная память
-        - ReminderPlugin: создание/удаление временных и переодических напоминаний
-        - WeatherPlugin: погода
-        - ClipboardPlugin: буфер обмена
-        - MiniGamePlugin: мини-игры
+        Используй доступные плагины для выполнения действий. Не описывай, ЧТО надо сделать — вызови плагин.
+        Если для достижения цели нужно выполнить несколько действий — спланируй и выполни их последовательно.
 
         ## КОГДА НУЖНО ИСКАТЬ В ПАМЯТИ (RagPlugin.SearchMemory):
         - вопросы о прошлом: 'о чём я тебя просил', 'что я делал вчера', 'как меня зовут'
         - если пользователь спрашивает о предыдущих командах
 
         ## ПРАВИЛА:
-        1. Всегда используй плагины для выполнения действий. НЕ ОПИСЫВАЙ, ЧТО НАДО СДЕЛАТЬ — ВЫЗОВИ ПЛАГИН!
-        2. Формат ответа: DONE: / WARNING: / ERROR: + сообщение о результате
-        3. Не используй эмодзи. Будь кратким. Ответ может быть развёрнутым только если пользователь попросил о чём-то рассказать.
-        4. Так же помни, сейча {DateTime.Now.ToString("D")}";
+        1. Формат ответа: DONE: / WARNING: / ERROR: + сообщение о результате.
+        2. Не используй эмодзи. Будь кратким. Ответ может быть развёрнутым только если пользователь попросил о чём-то рассказать.
+        3. Так же в ответе старайся избегать сложные/длинные названия файлов или путей, помни что твой ответ озвучивается пользователю.
+        
+        Текущая дата: {DateTime.Now:D}";
 
     public CommunicationAiService(TrayService trayService, Kernel kernel, IRagMemoryService memoryService, ILogger<CommunicationAiService> logger) {
         _logger = logger;
@@ -307,8 +298,19 @@ public class CommunicationAiService : IDisposable {
         }
     }
 
-    private static string ExtractStatusFromResponse(string response) {
+    private string ExtractStatusFromResponse(string response) {
         if (string.IsNullOrEmpty(response)) return "DONE";
+
+        if (response.Trim().StartsWith("{") && response.Trim().EndsWith("}")) {
+            try {
+                using var json = JsonDocument.Parse(response);
+                if (json.RootElement.TryGetProperty("status", out var statusProp)) {
+                    return statusProp.GetString() ?? "DONE";
+                }
+            }
+            catch { }
+        }
+
         string upper = response.ToUpperInvariant();
         if (upper.StartsWith("DONE")) return "DONE";
         if (upper.StartsWith("WARNING")) return "WARNING";
