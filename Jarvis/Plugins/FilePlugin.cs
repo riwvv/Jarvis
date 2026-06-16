@@ -9,20 +9,6 @@ public class FilePlugin {
     private static string DesktopPath => Environment.GetFolderPath(Environment.SpecialFolder.Desktop);
 
     [KernelFunction]
-    [Description("Создаёт файл на рабочем столе")]
-    public async Task<string> CreateFile([Description("Имя файла (например: заметки.txt)")] string fileName, [Description("Содержимое файла")] string content) {
-        try {
-            string fullPath = Path.Combine(DesktopPath, fileName);
-
-            await File.WriteAllTextAsync(fullPath, content, Encoding.UTF8);
-            return $"Файл создан на рабочем столе: {fileName}";
-        }
-        catch (Exception ex) {
-            return $"Ошибка создания: {ex.Message}";
-        }
-    }
-
-    [KernelFunction]
     [Description("Читает файл с рабочего стола")]
     public async Task<string> ReadFile([Description("Имя файла на рабочем столе")] string fileName) {
         try {
