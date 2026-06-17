@@ -72,7 +72,7 @@ public class RagMemoryService : IRagMemoryService {
                 metadata: metadata
             );
             await _retriever.AddDocumentAsync(document);
-            _logger.LogDebug("Сохранён диалог в память");
+            _logger.LogInformation("Сохранён диалог в память");
         }
         catch (Exception ex) {
             _logger.LogError(ex, "Ошибка при сохранении в память");
@@ -87,7 +87,7 @@ public class RagMemoryService : IRagMemoryService {
             var results = await _retriever.Search(userMessage, topK);
             var resultsList = results.ToList();
 
-            if (!resultsList.Any())
+            if (resultsList.Count == 0)
                 return null;
 
             var sb = new StringBuilder();
@@ -100,7 +100,7 @@ public class RagMemoryService : IRagMemoryService {
                 sb.AppendLine($"- [релевантность: {result.Score:F2}] {content}");
             }
 
-            _logger.LogDebug($"Найдено {resultsList.Count} релевантных записей");
+            _logger.LogInformation($"Найдено {resultsList.Count} релевантных записей");
             return sb.ToString();
         }
         catch (Exception ex) {
@@ -112,25 +112,25 @@ public class RagMemoryService : IRagMemoryService {
     private async Task LoadExistingVectorsAsync() {
         try {
             if (!Directory.Exists(_vectorPath)) {
-                _logger.LogDebug("Папка векторов не существует, пустая память");
+                _logger.LogError("Папка векторов не существует, пустая память");
                 return;
             }
 
             var kbFilePath = Path.Combine(_vectorPath, "kb.json");
             if (!File.Exists(kbFilePath)) {
-                _logger.LogDebug("Файл kb.json не найден, память пуста");
+                _logger.LogError("Файл kb.json не найден, память пуста");
                 return;
             }
 
             var json = await File.ReadAllTextAsync(kbFilePath);
             var documents = JsonSerializer.Deserialize<List<VectorDocument>>(json, _jsonOptions);
 
-            if (documents != null && documents.Any()) {
+            if (documents != null && documents.Count != 0) {
                 foreach (var doc in documents) {
                     var ragDocument = new Document(
                         source: doc.Source ?? "conversation",
                         content: doc.Content,
-                        metadata: doc.Metadata ?? new Dictionary<string, string>()
+                        metadata: doc.Metadata ?? []
                     );
                     await _retriever.AddDocumentAsync(ragDocument);
                 }
