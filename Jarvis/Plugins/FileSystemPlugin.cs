@@ -359,7 +359,7 @@ public class FileSystemPlugin {
                     extension = fileType.StartsWith(".") ? fileType : "." + fileType;
             }
             else
-                extension = _fileTypes.TryGetValue("текстовик", out var types) && types.Any() ? types.First() : ".txt";
+                extension = _fileTypes.TryGetValue("текстовик", out var types) && types.Count != 0 ? types.First() : ".txt";
 
             string cleanFileName = Path.GetFileNameWithoutExtension(fileName);
             string fullFileName = cleanFileName + extension;
