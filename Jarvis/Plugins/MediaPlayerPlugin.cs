@@ -1,5 +1,6 @@
 ﻿using Microsoft.SemanticKernel;
 using System.ComponentModel;
+using System.Text.Json;
 using Windows.Media.Control;
 
 namespace Jarvis.Plugins;
@@ -14,19 +15,50 @@ public class MediaPlayerPlugin {
         try {
             var session = await GetCurrentSession();
             if (session == null)
-                return "Ни один плеер сейчас не воспроизводит музыку";
+            {
+                var error = new
+                {
+                    status = "ERROR",
+                    cause = session,
+                    description = "Не удалсь найти действующий плеер на этом устройстве"
+                };
+                return JsonSerializer.Serialize(error);
+            }
 
+                
             var mediaProperties = await session.TryGetMediaPropertiesAsync();
             if (mediaProperties == null)
-                return "Не удалось получить информацию о треке";
+            {
+                var error = new
+                {
+                    status = "ERROR",
+                    cause = mediaProperties,
+                    description = $"Не может получить инофрмацию о треке - {mediaProperties}"
+                };
+                return JsonSerializer.Serialize(error);
+            }
+                
 
             string title = mediaProperties.Title ?? "Неизвестно";
             string artist = mediaProperties.Artist ?? "Неизвестный исполнитель";
 
-            return $"{artist} - {title}";
+            var result = new
+            {
+                status = "DONE",
+                message = $"В плеере {session} удалось найти информацию о треке",
+                currentArtist = artist,
+                currentTitle = title
+            };
+            return JsonSerializer.Serialize(result);
         }
         catch (Exception ex) {
-            return $"Ошибка получения информации: {ex.Message}";
+            var error = new
+            {
+                status = "ERROR",
+                cause = "Exception",
+                description = ex.Message
+            };
+            return JsonSerializer.Serialize(error);
         }
     }
 
@@ -36,7 +68,15 @@ public class MediaPlayerPlugin {
         try {
             var session = await GetCurrentSession();
             if (session == null)
-                return "Нет активного плеера";
+            {
+                var error = new
+                {
+                    status = "ERROR",
+                    cause = session,
+                    description = "Не удалсь найти действующий плеер на этом устройстве"
+                };
+                return JsonSerializer.Serialize(error);
+            }
 
             var playbackInfo = session.GetPlaybackInfo();
 
@@ -45,10 +85,23 @@ public class MediaPlayerPlugin {
             else
                 await session.TryPlayAsync();
 
-            return "Готово";
+            var result = new
+            {
+                status = "DONE",
+                message = $"Состояние текущего плеера - {playbackInfo.PlaybackStatus}",
+                currentPlaybackStatus = playbackInfo.PlaybackStatus,
+            };
+
+            return JsonSerializer.Serialize(result);
         }
         catch (Exception ex) {
-            return $"Ошибка: {ex.Message}";
+            var error = new
+            {
+                status = "ERROR",
+                cause = "Exception",
+                description = ex.Message
+            };
+            return JsonSerializer.Serialize(error);
         }
     }
 
@@ -58,13 +111,33 @@ public class MediaPlayerPlugin {
         try {
             var session = await GetCurrentSession();
             if (session == null)
-                return "Нет активного плеера";
+            {
+                var error = new
+                {
+                    status = "ERROR",
+                    cause = session,
+                    description = "Не удалсь найти действующий плеер на этом устройстве"
+                };
+                return JsonSerializer.Serialize(error);
+            }
 
             await session.TrySkipNextAsync();
-            return "Следующий трек";
+            var result = new
+            {
+                status = "DONE",
+                message = "Переключен на следующий трек",
+                currentTrack = session.TryGetMediaPropertiesAsync().ToString()
+            };
+            return JsonSerializer.Serialize(result);
         }
         catch (Exception ex) {
-            return $"Ошибка: {ex.Message}";
+            var error = new
+            {
+                status = "ERROR",
+                cause = "Exception",
+                description = ex.Message
+            };
+            return JsonSerializer.Serialize(error);
         }
     }
 
@@ -74,13 +147,33 @@ public class MediaPlayerPlugin {
         try {
             var session = await GetCurrentSession();
             if (session == null)
-                return "Нет активного плеера";
+            {
+                var error = new
+                {
+                    status = "ERROR",
+                    cause = session,
+                    description = "Не удалсь найти действующий плеер на этом устройстве"
+                };
+                return JsonSerializer.Serialize(error);
+            }
 
             await session.TrySkipPreviousAsync();
-            return "Предыдущий трек";
+            var result = new
+            {
+                status = "DONE",
+                message = "Переключен на предыдущий трек",
+                currentTrack = session.TryGetMediaPropertiesAsync().ToString()
+            };
+            return JsonSerializer.Serialize(result);
         }
         catch (Exception ex) {
-            return $"Ошибка: {ex.Message}";
+            var error = new
+            {
+                status = "ERROR",
+                cause = "Exception",
+                description = ex.Message
+            };
+            return JsonSerializer.Serialize(error);
         }
     }
 
@@ -90,13 +183,32 @@ public class MediaPlayerPlugin {
         try {
             var session = await GetCurrentSession();
             if (session == null)
-                return "Нет активного плеера";
+            {
+                var error = new
+                {
+                    status = "ERROR",
+                    cause = session,
+                    description = "Не удалсь найти действующий плеер на этом устройстве"
+                };
+                return JsonSerializer.Serialize(error);
+            }
 
             await session.TryStopAsync();
-            return "Воспроизведение остановлено";
+            var result = new
+            {
+                status = "DONE",
+                message = $"Текущий плеер - {session} приостановлен"
+            };
+            return JsonSerializer.Serialize(result);
         }
         catch (Exception ex) {
-            return $"Ошибка: {ex.Message}";
+            var error = new
+            {
+                status = "ERROR",
+                cause = "Exception",
+                description = ex.Message
+            };
+            return JsonSerializer.Serialize(error);
         }
     }
 
