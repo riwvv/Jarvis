@@ -10,6 +10,7 @@ namespace Jarvis.Plugins;
 
 public class FileSystemPlugin {
     private readonly List<string> _folderNames = ["downloads", "documents", "pictures", "videos", "music", "desktop"];
+    private readonly char[] invalidCharsForName = Path.GetInvalidFileNameChars();
     private readonly Dictionary<string, List<string>> _fileTypes = new() {
         { "текстовик", [".txt"] },
         { "текстовый документ", [".txt"] },
@@ -96,11 +97,11 @@ public class FileSystemPlugin {
 
             return JsonSerializer.Serialize(error);
         }
-        if (string.IsNullOrWhiteSpace(fileName)) {
+        if (!FileNameValidation(fileName)) {
             var error = new {
                 status = "ERROR",
                 cause = fileName,
-                description = $"Указано не корректное название файла"
+                description = $"Название файла не может быть пустым и не должно содержать недопустимые символы: {string.Join(", ", fileName.Where(c => invalidCharsForName.Contains(c)).Distinct())}"
             };
 
             return JsonSerializer.Serialize(error);
@@ -155,11 +156,11 @@ public class FileSystemPlugin {
 
             return JsonSerializer.Serialize(error);
         }
-        if (string.IsNullOrWhiteSpace(fileName)) {
+        if (!FileNameValidation(fileName)) {
             var error = new {
                 status = "ERROR",
                 cause = fileName,
-                description = "Указано не корректное название файла"
+                description = $"Название файла не может быть пустым и не должно содержать недопустимые символы: {string.Join(", ", fileName.Where(c => invalidCharsForName.Contains(c)).Distinct())}"
             };
 
             return JsonSerializer.Serialize(error);
@@ -252,11 +253,11 @@ public class FileSystemPlugin {
 
             return JsonSerializer.Serialize(error);
         }
-        if (string.IsNullOrWhiteSpace(fileName)) {
+        if (!FileNameValidation(fileName)) {
             var error = new {
                 status = "ERROR",
                 cause = fileName,
-                description = "Указано не корректное название файла"
+                description = $"Название файла не может быть пустым и не должно содержать недопустимые символы: {string.Join(", ", fileName.Where(c => invalidCharsForName.Contains(c)).Distinct())}"
             };
 
             return JsonSerializer.Serialize(error);
@@ -317,22 +318,12 @@ public class FileSystemPlugin {
 
             return JsonSerializer.Serialize(error);
         }
-        if (string.IsNullOrWhiteSpace(fileName)) {
+
+        if (!FileNameValidation(fileName)) {
             var error = new {
                 status = "ERROR",
                 cause = fileName,
-                description = "Название файла не может быть пустым"
-            };
-
-            return JsonSerializer.Serialize(error);
-        }
-
-        char[] invalidChars = Path.GetInvalidFileNameChars();
-        if (fileName.Any(c => invalidChars.Contains(c))) {
-            var error = new {
-                status = "ERROR",
-                cause = fileName,
-                description = $"Имя файла содержит недопустимые символы: {string.Join(", ", fileName.Where(c => invalidChars.Contains(c)).Distinct())}"
+                description = $"Название файла не может быть пустым и не должно содержать недопустимые символы: {string.Join(", ", fileName.Where(c => invalidCharsForName.Contains(c)).Distinct())}"
             };
 
             return JsonSerializer.Serialize(error);
@@ -359,7 +350,7 @@ public class FileSystemPlugin {
                     extension = fileType.StartsWith(".") ? fileType : "." + fileType;
             }
             else
-                extension = _fileTypes.TryGetValue("текстовик", out var types) && types.Any() ? types.First() : ".txt";
+                extension = _fileTypes.TryGetValue("текстовик", out var types) && types.Count != 0 ? types.First() : ".txt";
 
             string cleanFileName = Path.GetFileNameWithoutExtension(fileName);
             string fullFileName = cleanFileName + extension;
@@ -415,6 +406,91 @@ public class FileSystemPlugin {
         }
     }
 
+    [KernelFunction]
+    [Description("Переименование существующего файла")]
+    public async Task<string> RenameExistsFile(
+        [Description("Название одной из специальных папок: downloads, documents, pictures, videos, music, desktop")] string folderName,
+        [Description("Старое название файла (без расширения)")] string oldFileName,
+        [Description("Новое название файла (без расширения)")] string newFileName,
+        [Description("Тип файла, например: текстовик, презентация, фото, видео и т.д.")] string? fileType = null) {
+        if (!SpecialFolderValidation(folderName)) {
+            var error = new {
+                status = "ERROR",
+                cause = folderName,
+                description = $"Некорректное название папки. Поддерживаемые: {string.Join(", ", _folderNames)}"
+            };
+
+            return JsonSerializer.Serialize(error);
+        }
+        if (!FileNameValidation(oldFileName)) {
+            var error = new {
+                status = "ERROR",
+                cause = oldFileName,
+                description = $"Название файла не может быть пустым и не должно содержать недопустимые символы: {string.Join(", ", oldFileName.Where(c => invalidCharsForName.Contains(c)).Distinct())}"
+            };
+
+            return JsonSerializer.Serialize(error);
+        }
+        if (!FileNameValidation(newFileName)) {
+            var error = new {
+                status = "ERROR",
+                cause = newFileName,
+                description = $"Название файла не может быть пустым и не должно содержать недопустимые символы: {string.Join(", ", newFileName.Where(c => invalidCharsForName.Contains(c)).Distinct())}"
+            };
+
+            return JsonSerializer.Serialize(error);
+        }
+
+        try {
+            string path = GetFullFolderPath(folderName);
+            string oldFullPath = SearchForRelevantFile(path, oldFileName, fileType);
+            if (string.IsNullOrEmpty(oldFullPath) || !File.Exists(oldFullPath)) {
+                var error = new {
+                    status = "ERROR",
+                    cause = oldFullPath,
+                    description = $"Файла по пути {oldFullPath} не существует, либо путь пустой"
+                };
+
+                return JsonSerializer.Serialize(error);
+            }
+
+            string newFullPath = Path.Combine(path, newFileName + oldFullPath[oldFullPath.LastIndexOf(@".")..]);
+
+            if (File.Exists(newFullPath)) {
+                var error = new {
+                    status = "ERROR",
+                    cause = newFullPath,
+                    description = $"Файл с названием {newFileName} уже существует по пути {newFullPath}"
+                };
+
+                return JsonSerializer.Serialize(error);
+            }
+
+            File.Move(oldFullPath, newFullPath);
+
+            var result = new {
+                status = "DONE",
+                message = $"Файл {oldFileName} успешно переименован на {newFileName}",
+                oldName = oldFileName,
+                newName = newFileName,
+                oldPath = oldFullPath,
+                newPath = newFullPath
+            };
+
+            return JsonSerializer.Serialize(result);
+        }
+        catch (Exception ex) {
+            var error = new {
+                status = "ERROR",
+                cause = "UnexpectedError",
+                description = $"Произошла непредвиденная ошибка при создании файла: {ex.Message}"
+            };
+            return JsonSerializer.Serialize(error);
+        }
+    }
+
+    private bool FileNameValidation(string name) => !string.IsNullOrEmpty(name) && (!name.Any(c => invalidCharsForName.Contains(c)));
+
     private bool TryGetRecognizedFileType(string? type, out string? outputType) {
         outputType = null;
 
@@ -450,7 +526,7 @@ public class FileSystemPlugin {
         List<string> files = [..Directory.GetFiles(path)];
 
         List<string>? targetFileTypes = GetRecognizedFileType(targetFileType);
-        string patern = targetFileTypes == null ? @$"{FormattingFileName(targetFileName)}(\w*)" : @$"{FormattingFileName(targetFileName)}(\w*){string.Join("|", targetFileTypes!.Select(Regex.Escape))}";
+        string patern = targetFileTypes == null ? @$"{FormattingFileName(targetFileName)}(\w*)" : @$"{FormattingFileName(targetFileName)}(\w*)({string.Join("|", targetFileTypes!.Select(Regex.Escape))})";
         Regex regex = new(patern, RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
         Dictionary<string, double> results = [];
