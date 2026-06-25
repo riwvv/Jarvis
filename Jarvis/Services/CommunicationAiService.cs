@@ -155,7 +155,10 @@ public class CommunicationAiService : IDisposable {
             currentHistory.AddUserMessage(userQuery);
             _logger.LogInformation($"📚 ИСТОРИЯ СООБЩЕНИЙ: {_history.Count} сообщений");
 
-            var response = await _chat.GetChatMessageContentAsync(currentHistory, _settings, _kernel, cancellationToken);
+            using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            cts.CancelAfter(TimeSpan.FromSeconds(150));
+
+            var response = await _chat.GetChatMessageContentAsync(currentHistory, _settings, _kernel, cts.Token);
             var responseContent = response?.Content ?? string.Empty;
 
             _logger.LogInformation($"📨 ОТВЕТ ОТ LLM ПОЛУЧЕН: {(string.IsNullOrEmpty(responseContent) ? "ПУСТОЙ" : $"'{responseContent}'")}");
@@ -381,13 +384,33 @@ public class CommunicationAiService : IDisposable {
             ["какая погода"] = async (_) => {
                 var function = _kernel.Plugins.GetFunction("WeatherPlugin", "GetWeatherAtCurrentLocation");
                 var result = await _kernel.InvokeAsync(function);
-                return result.GetValue<string>() ?? "Погода не найдена";
+                var jsonResult = result.GetValue<string>();
+
+                if (jsonResult != null && IsJsonResponse(jsonResult)) {
+                    try {
+                        using var doc = JsonDocument.Parse(jsonResult);
+                        var message = doc.RootElement.GetProperty("message").GetString();
+                        return message ?? "Погода не найдена";
+                    }
+                    catch { }
+                }
+                return jsonResult ?? "Погода не найдена";
             },
 
             ["погода"] = async (_) => {
                 var function = _kernel.Plugins.GetFunction("WeatherPlugin", "GetWeatherAtCurrentLocation");
                 var result = await _kernel.InvokeAsync(function);
-                return result.GetValue<string>() ?? "Погода не найдена";
+                var jsonResult = result.GetValue<string>();
+
+                if (jsonResult != null && IsJsonResponse(jsonResult)) {
+                    try {
+                        using var doc = JsonDocument.Parse(jsonResult);
+                        var message = doc.RootElement.GetProperty("message").GetString();
+                        return message ?? "Погода не найдена";
+                    }
+                    catch { }
+                }
+                return jsonResult ?? "Погода не найдена";
             },
 
             ["какая погода завтра"] = async (_) => {
