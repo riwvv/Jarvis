@@ -1,6 +1,7 @@
-﻿using Microsoft.SemanticKernel;
+﻿using Windows.Media.Control;
+using Microsoft.SemanticKernel;
 using System.ComponentModel;
-using Windows.Media.Control;
+using System.Text.Json;
 
 namespace Jarvis.Plugins;
 
@@ -10,93 +11,177 @@ public class MediaPlayerPlugin {
 
     [KernelFunction]
     [Description("Получает информацию о текущем треке: исполнитель и название")]
-    public async Task<string> GetCurrentTrackInfo() {
+    public static async Task<string> GetCurrentTrackInfo() {
         try {
             var session = await GetCurrentSession();
-            if (session == null)
-                return "Ни один плеер сейчас не воспроизводит музыку";
+            if (session == null) {
+                return JsonSerializer.Serialize(new {
+                    status = "WARNING",
+                    cause = "no_player",
+                    description = "Ни один плеер сейчас не воспроизводит музыку"
+                });
+            }
 
             var mediaProperties = await session.TryGetMediaPropertiesAsync();
-            if (mediaProperties == null)
-                return "Не удалось получить информацию о треке";
+            if (mediaProperties == null) {
+                return JsonSerializer.Serialize(new {
+                    status = "ERROR",
+                    cause = "no_media_info",
+                    description = "Не удалось получить информацию о треке"
+                });
+            }
 
             string title = mediaProperties.Title ?? "Неизвестно";
             string artist = mediaProperties.Artist ?? "Неизвестный исполнитель";
 
-            return $"{artist} - {title}";
+            return JsonSerializer.Serialize(new {
+                status = "DONE",
+                message = $"{artist} - {title}",
+                titleMusic = title,
+                artistMusic = artist,
+                fullTrack = $"{artist} - {title}"
+            });
         }
         catch (Exception ex) {
-            return $"Ошибка получения информации: {ex.Message}";
+            return JsonSerializer.Serialize(new {
+                status = "ERROR",
+                cause = "exception",
+                description = $"Ошибка получения информации: {ex.Message}"
+            });
         }
     }
 
     [KernelFunction]
     [Description("Ставит музыку на паузу или возобновляет воспроизведение")]
-    public async Task<string> PlayPause() {
+    public static async Task<string> PlayPause() {
         try {
             var session = await GetCurrentSession();
-            if (session == null)
-                return "Нет активного плеера";
+            if (session == null) {
+                return JsonSerializer.Serialize(new {
+                    status = "ERROR",
+                    cause = "no_player",
+                    description = "Нет активного плеера"
+                });
+            }
 
             var playbackInfo = session.GetPlaybackInfo();
+            var currentStatus = playbackInfo.PlaybackStatus;
 
-            if (playbackInfo.PlaybackStatus == GlobalSystemMediaTransportControlsSessionPlaybackStatus.Playing)
+            if (currentStatus == GlobalSystemMediaTransportControlsSessionPlaybackStatus.Playing) {
                 await session.TryPauseAsync();
-            else
+                return JsonSerializer.Serialize(new {
+                    status = "DONE",
+                    message = "Воспроизведение поставлено на паузу",
+                    action = "pause",
+                    currentStatus = "paused"
+                });
+            }
+            else {
                 await session.TryPlayAsync();
-
-            return "Готово";
+                return JsonSerializer.Serialize(new {
+                    status = "DONE",
+                    message = "Воспроизведение возобновлено",
+                    action = "play",
+                    currentStatus = "playing"
+                });
+            }
         }
         catch (Exception ex) {
-            return $"Ошибка: {ex.Message}";
+            return JsonSerializer.Serialize(new {
+                status = "ERROR",
+                cause = "exception",
+                description = $"Ошибка: {ex.Message}"
+            });
         }
     }
 
     [KernelFunction]
     [Description("Переключает на следующий трек")]
-    public async Task<string> NextTrack() {
+    public static async Task<string> NextTrack() {
         try {
             var session = await GetCurrentSession();
-            if (session == null)
-                return "Нет активного плеера";
+            if (session == null) {
+                return JsonSerializer.Serialize(new {
+                    status = "ERROR",
+                    cause = "no_player",
+                    description = "Нет активного плеера"
+                });
+            }
 
             await session.TrySkipNextAsync();
-            return "Следующий трек";
+
+            return JsonSerializer.Serialize(new {
+                status = "DONE",
+                message = "Следующий трек",
+                action = "next"
+            });
         }
         catch (Exception ex) {
-            return $"Ошибка: {ex.Message}";
+            return JsonSerializer.Serialize(new {
+                status = "ERROR",
+                cause = "exception",
+                description = $"Ошибка: {ex.Message}"
+            });
         }
     }
 
     [KernelFunction]
     [Description("Переключает на предыдущий трек")]
-    public async Task<string> PreviousTrack() {
+    public static async Task<string> PreviousTrack() {
         try {
             var session = await GetCurrentSession();
-            if (session == null)
-                return "Нет активного плеера";
+            if (session == null) {
+                return JsonSerializer.Serialize(new {
+                    status = "ERROR",
+                    cause = "no_player",
+                    description = "Нет активного плеера"
+                });
+            }
 
             await session.TrySkipPreviousAsync();
-            return "Предыдущий трек";
+
+            return JsonSerializer.Serialize(new {
+                status = "DONE",
+                message = "Предыдущий трек",
+                action = "previous"
+            });
         }
         catch (Exception ex) {
-            return $"Ошибка: {ex.Message}";
+            return JsonSerializer.Serialize(new {
+                status = "ERROR",
+                cause = "exception",
+                description = $"Ошибка: {ex.Message}"
+            });
         }
     }
 
     [KernelFunction]
     [Description("Останавливает воспроизведение")]
-    public async Task<string> Stop() {
+    public static async Task<string> Stop() {
         try {
             var session = await GetCurrentSession();
-            if (session == null)
-                return "Нет активного плеера";
+            if (session == null) {
+                return JsonSerializer.Serialize(new {
+                    status = "ERROR",
+                    cause = "no_player",
+                    description = "Нет активного плеера"
+                });
+            }
 
             await session.TryStopAsync();
-            return "Воспроизведение остановлено";
+
+            return JsonSerializer.Serialize(new {
+                status = "DONE",
+                message = "Воспроизведение остановлено",
+                action = "stop"
+            });
         }
         catch (Exception ex) {
-            return $"Ошибка: {ex.Message}";
+            return JsonSerializer.Serialize(new {
+                status = "ERROR",
+                cause = "exception",
+                description = $"Ошибка: {ex.Message}"
+            });
         }
     }
 

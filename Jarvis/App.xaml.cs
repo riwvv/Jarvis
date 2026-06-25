@@ -17,7 +17,7 @@ public partial class App : Application {
 
     public App() => _host = CreateHostBuilder().Build();
 
-    private IHostBuilder CreateHostBuilder() => Host.CreateDefaultBuilder()
+    private static IHostBuilder CreateHostBuilder() => Host.CreateDefaultBuilder()
         .UseSerilog((context, services, config) => config.ReadFrom.Configuration(context.Configuration)
                 .WriteTo.Debug()
                 .WriteTo.File("logs/jarvis-logs.txt", rollingInterval: RollingInterval.Day, retainedFileCountLimit: 7))
