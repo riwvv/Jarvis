@@ -1,6 +1,7 @@
 ﻿using Timer = System.Threading.Timer;
 using System.Text.RegularExpressions;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.IO;
 using Jarvis.Models;
 
@@ -15,7 +16,11 @@ public class ReminderService : IDisposable {
     private Timer? _timer;
 
     private static readonly JsonSerializerOptions _jsonOptions = new() {
-        WriteIndented = true
+        WriteIndented = true,
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        Converters = {
+            new JsonStringEnumConverter()
+        }
     };
 
     public ReminderService(TextToSpeechService tts) {
@@ -175,7 +180,7 @@ public class ReminderService : IDisposable {
         try {
             if (File.Exists(_storageFile)) {
                 var json = File.ReadAllText(_storageFile);
-                _reminders = JsonSerializer.Deserialize<List<ReminderItem>>(json) ?? [];
+                _reminders = JsonSerializer.Deserialize<List<ReminderItem>>(json, _jsonOptions) ?? [];
             }
         }
         catch {
