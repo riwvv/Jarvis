@@ -1,10 +1,11 @@
 ﻿using Microsoft.SemanticKernel;
 using Microsoft.Win32;
+using System.Text.RegularExpressions;
 using System.ComponentModel;
 using System.Diagnostics;
-using System.IO;
+using System.Text.Json;
 using System.Text;
-using System.Text.RegularExpressions;
+using System.IO;
 using Jarvis.Models;
 
 namespace Jarvis.Plugins;
@@ -33,26 +34,48 @@ public class ApplicationPlugin {
         "Service Pack"
     ];
 
+    #region Публичные методы с JSON-возвратом
+
     [KernelFunction]
     [Description("Запускает приложение по названию. Сканирует реестр один раз при первом обращении")]
     public async Task<string> LaunchApp([Description("Название приложения: Steam, Telegram, Google Chrome, Visual Studio")] string appName) {
         if (!_isLoaded)
             await ScanSystemAsync();
 
-        if (_installedApps == null || _installedApps.Count == 0)
-            return "Приложения не найдены";
+        if (_installedApps == null || _installedApps.Count == 0) {
+            return JsonSerializer.Serialize(new {
+                status = "ERROR",
+                cause = "scan_failed",
+                description = "Не удалось найти установленные приложения"
+            });
+        }
 
         var app = SearchApp(appName.Trim());
 
-        if (app == null)
-            return $"Приложение \"{appName}\" не найдено";
+        if (app == null) {
+            return JsonSerializer.Serialize(new {
+                status = "ERROR",
+                cause = appName,
+                description = $"Приложение '{appName}' не найдено в системе"
+            });
+        }
 
         try {
             Process.Start(new ProcessStartInfo(app.ExecutablePath!) { UseShellExecute = true });
-            return $"Запущено: {app.DisplayName}";
+
+            return JsonSerializer.Serialize(new {
+                status = "DONE",
+                message = $"Запущено: {app.DisplayName}",
+                appName = app.DisplayName,
+                executablePath = app.ExecutablePath
+            });
         }
         catch (Exception ex) {
-            return $"Ошибка запуска: {ex.Message}";
+            return JsonSerializer.Serialize(new {
+                status = "ERROR",
+                cause = "launch_failed",
+                description = $"Ошибка запуска: {ex.Message}"
+            });
         }
     }
 
@@ -62,8 +85,13 @@ public class ApplicationPlugin {
         if (!_isLoaded)
             await ScanSystemAsync();
 
-        if (_installedApps == null || _installedApps.Count == 0)
-            return "Приложения не найдены";
+        if (_installedApps == null || _installedApps.Count == 0) {
+            return JsonSerializer.Serialize(new {
+                status = "ERROR",
+                cause = "scan_failed",
+                description = "Не удалось найти установленные приложения"
+            });
+        }
 
         try {
             string report = GenerateTextReport();
@@ -71,15 +99,103 @@ public class ApplicationPlugin {
             string filePath = Path.Combine(desktop, $"Список приложений {DateTime.Now:yyyy-MM-dd}.txt");
 
             await File.WriteAllTextAsync(filePath, report, Encoding.UTF8);
-            return $"Файл создан на рабочем столе";
+
+            return JsonSerializer.Serialize(new {
+                status = "DONE",
+                message = $"Файл со списком приложений создан на рабочем столе",
+                fullFilePath = filePath,
+                apps = _installedApps,
+                appCount = _installedApps.Count
+            });
         }
         catch (Exception ex) {
-            return $"Ошибка создания файла: {ex.Message}";
+            return JsonSerializer.Serialize(new {
+                status = "ERROR",
+                cause = "file_create_failed",
+                description = $"Ошибка создания файла: {ex.Message}"
+            });
         }
     }
 
+    [KernelFunction]
+    [Description("Запускает игру из Steam по точному названию")]
+    public async Task<string> LaunchSteamGame([Description("Точное название игры на английском, как в Steam: Satisfactory, Counter-Strike 2, Dota 2, Cyberpunk 2077")] string gameName) {
+        if (!_steamScanned)
+            await ScanSteamGamesAsync();
+
+        if (_steamGames == null || _steamGames.Count == 0) {
+            return JsonSerializer.Serialize(new {
+                status = "ERROR",
+                cause = "steam_not_found",
+                description = "Игры в Steam не найдены. Убедитесь, что Steam установлен и есть хотя бы одна игра."
+            });
+        }
+
+        var exactMatch = _steamGames.Keys.FirstOrDefault(g =>
+            string.Equals(g, gameName?.Trim(), StringComparison.OrdinalIgnoreCase));
+
+        if (exactMatch == null) {
+            var suggestions = _steamGames.Keys.Take(5).ToList();
+            return JsonSerializer.Serialize(new {
+                status = "ERROR",
+                cause = gameName,
+                description = $"Игра '{gameName}' не найдена",
+                suggestion = suggestions,
+                totalGames = _steamGames.Count
+            });
+        }
+
+        try {
+            Process.Start(new ProcessStartInfo($"steam://rungameid/{_steamGames[exactMatch]}") {
+                UseShellExecute = true
+            });
+
+            return JsonSerializer.Serialize(new {
+                status = "DONE",
+                message = $"Запускаю: {exactMatch}",
+                gameName = exactMatch,
+                gameId = _steamGames[exactMatch]
+            });
+        }
+        catch (Exception ex) {
+            return JsonSerializer.Serialize(new {
+                status = "ERROR",
+                cause = "launch_failed",
+                description = $"Ошибка запуска: {ex.Message}. Убедитесь, что Steam запущен."
+            });
+        }
+    }
+
+    [KernelFunction]
+    [Description("Возвращает список установленных в Steam игр")]
+    public async Task<string> ListSteamGames() {
+        if (!_steamScanned)
+            await ScanSteamGamesAsync();
+
+        if (_steamGames == null || _steamGames.Count == 0) {
+            return JsonSerializer.Serialize(new {
+                status = "ERROR",
+                cause = "steam_not_found",
+                description = "Игры в Steam не найдены"
+            });
+        }
+
+        var gameList = _steamGames.Keys.OrderBy(x => x).ToList();
+
+        return JsonSerializer.Serialize(new {
+            status = "DONE",
+            message = $"Найдено {_steamGames.Count} игр в Steam",
+            games = gameList,
+            total = _steamGames.Count
+        });
+    }
+
+    #endregion
+
+    #region Приватные методы (без изменений)
+
     private async Task ScanSystemAsync() {
-        _installedApps = new List<InstalledApplication>();
+        _installedApps = [];
         await Task.Run(() => ScanRegistry());
         _isLoaded = true;
     }
@@ -135,7 +251,7 @@ public class ApplicationPlugin {
         };
     }
 
-    private string? ResolveExePath(RegistryKey key, string? icon, string appName) {
+    private static string? ResolveExePath(RegistryKey key, string? icon, string appName) {
         if (!string.IsNullOrEmpty(icon)) {
             var path = icon.Split(',')[0].Trim().Trim('"');
             if (path.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)
@@ -163,7 +279,7 @@ public class ApplicationPlugin {
         return null;
     }
 
-    private bool IsSystemPath(string path) {
+    private static bool IsSystemPath(string path) {
         string[] systemPaths =
         [
             Environment.GetFolderPath(Environment.SpecialFolder.Windows),
@@ -204,46 +320,6 @@ public class ApplicationPlugin {
         return sb.ToString();
     }
 
-    [KernelFunction]
-    [Description("Запускает игру из Steam по точному названию")]
-    public async Task<string> LaunchSteamGame([Description("Точное название игры на английском, как в Steam: Satisfactory, Counter-Strike 2, Dota 2, Cyberpunk 2077")] string gameName) {
-        if (!_steamScanned)
-            await ScanSteamGamesAsync();
-
-        if (_steamGames == null || _steamGames.Count == 0)
-            return "Игры в Steam не найдены. Убедитесь, что Steam установлен и есть хотя бы одна игра.";
-
-        var exactMatch = _steamGames.Keys.FirstOrDefault(g =>
-            string.Equals(g, gameName?.Trim(), StringComparison.OrdinalIgnoreCase));
-
-        if (exactMatch == null) {
-            var suggestions = _steamGames.Keys.Take(5);
-            return $"Игра \"{gameName}\" не найдена. Установленные игры: {string.Join(", ", suggestions)}...";
-        }
-
-        try {
-            Process.Start(new ProcessStartInfo($"steam://rungameid/{_steamGames[exactMatch]}") {
-                UseShellExecute = true
-            });
-            return $"Запускаю: {exactMatch}";
-        }
-        catch (Exception ex) {
-            return $"Ошибка запуска: {ex.Message}. Убедитесь, что Steam запущен.";
-        }
-    }
-
-    [KernelFunction]
-    [Description("Возвращает список установленных в Steam игр")]
-    public async Task<string> ListSteamGames() {
-        if (!_steamScanned)
-            await ScanSteamGamesAsync();
-
-        if (_steamGames == null || _steamGames.Count == 0)
-            return "Игры не найдены";
-
-        return string.Join(", ", _steamGames.Keys.OrderBy(x => x));
-    }
-
     private async Task ScanSteamGamesAsync() {
         _steamGames = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
@@ -269,12 +345,10 @@ public class ApplicationPlugin {
         _steamScanned = true;
     }
 
-    private string? GetSteamPath() {
-        return Registry.GetValue(@"HKEY_CURRENT_USER\Software\Valve\Steam", "SteamPath", null) as string
+    private static string? GetSteamPath() => Registry.GetValue(@"HKEY_CURRENT_USER\Software\Valve\Steam", "SteamPath", null) as string
             ?? Registry.GetValue(@"HKEY_LOCAL_MACHINE\SOFTWARE\WOW6432Node\Valve\Steam", "InstallPath", null) as string;
-    }
 
-    private List<string> GetExtraLibraries(string steamPath) {
+    private static List<string> GetExtraLibraries(string steamPath) {
         var libraries = new List<string>();
         var configPath = Path.Combine(steamPath, "steamapps", "libraryfolders.vdf");
 
@@ -316,4 +390,6 @@ public class ApplicationPlugin {
             Debug.WriteLine($"Ошибка парсинга манифеста {Path.GetFileName(path)}: {ex.Message}");
         }
     }
+
+    #endregion
 }

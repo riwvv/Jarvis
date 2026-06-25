@@ -1,99 +1,171 @@
 ﻿using Microsoft.SemanticKernel;
 using System.Runtime.InteropServices;
 using System.ComponentModel;
-using System.Text;
+using System.Text.Json;
 
 namespace Jarvis.Plugins;
 
 public class ClipboardPlugin {
     [KernelFunction]
     [Description("Читает текст из буфера обмена")]
-    public async Task<string> GetTextFromClipBoard() => await ExecuteOnStaThreadAsync(() => {
+    public static async Task<string> GetTextFromClipBoard() => await ExecuteOnStaThreadAsync(() => {
         try {
-            if (!Clipboard.ContainsText())
-                return "Буфер обмена не содержит текста";
+            if (!Clipboard.ContainsText()) {
+                return JsonSerializer.Serialize(new {
+                    status = "WARNING",
+                    cause = "empty_clipboard",
+                    description = "Буфер обмена не содержит текста"
+                });
+            }
 
             var text = Clipboard.GetText();
-            if (string.IsNullOrWhiteSpace(text))
-                return "Буфер обмена содержит пустой текст";
+            if (string.IsNullOrWhiteSpace(text)) {
+                return JsonSerializer.Serialize(new {
+                    status = "WARNING",
+                    cause = "empty_text",
+                    description = "Буфер обмена содержит пустой текст"
+                });
+            }
 
-            if (text.Length > 500)
-                return $"Текст слишком длинный ({text.Length} символов). Первые 500 символов:\n{text[..500]}...";
+            var isTruncated = text.Length > 500;
+            var content = isTruncated ? text[..500] + "..." : text;
 
-            return text;
+            return JsonSerializer.Serialize(new {
+                status = "DONE",
+                message = isTruncated
+                    ? $"Текст слишком длинный ({text.Length} символов). Первые 500 символов..."
+                    : "Текст прочитан из буфера обмена",
+                text = content,
+                fullLength = text.Length,
+                truncated = isTruncated
+            });
         }
         catch (ExternalException ex) when (ex.ErrorCode == -2147221040) {
-            return "Буфер обмена временно недоступен, попробуйте ещё раз";
+            return JsonSerializer.Serialize(new {
+                status = "ERROR",
+                cause = "clipboard_busy",
+                description = "Буфер обмена временно недоступен, попробуйте ещё раз"
+            });
         }
-        catch (Exception) {
-            return $"Ошибка доступа к буферу обмена";
+        catch (Exception ex) {
+            return JsonSerializer.Serialize(new {
+                status = "ERROR",
+                cause = "access_denied",
+                description = $"Ошибка доступа к буферу обмена: {ex.Message}"
+            });
         }
     });
 
     [KernelFunction]
     [Description("Записывает текст в буфер обмена")]
-    public async Task<string> SetTextToClipboard([Description("Текст для записи в буфер обмена")] string primatyText) => await ExecuteOnStaThreadAsync(() => {
-        if (string.IsNullOrWhiteSpace(primatyText))
-            return "Копировать нечего: текст пуст";
-        try {
-            Clipboard.SetText(primatyText);
-            var preview = primatyText.Length > 20 ? primatyText[..20] + "..." : primatyText;
-            return $"Скопировано в буфер обмена. Начинается на: {preview}";
+    public static async Task<string> SetTextToClipboard([Description("Текст для записи в буфер обмена")] string primaryText) => await ExecuteOnStaThreadAsync(() => {
+        if (string.IsNullOrWhiteSpace(primaryText)) {
+            return JsonSerializer.Serialize(new {
+                status = "ERROR",
+                cause = "empty_text",
+                description = "Нечего копировать: текст пуст"
+            });
+        }
 
+        try {
+            Clipboard.SetText(primaryText);
+            var preview = primaryText.Length > 20 ? primaryText[..20] + "..." : primaryText;
+
+            return JsonSerializer.Serialize(new {
+                status = "DONE",
+                message = $"Текст скопирован в буфер обмена",
+                text = primaryText,
+                previewText = preview,
+                length = primaryText.Length
+            });
         }
         catch (ExternalException ex) when (ex.ErrorCode == -2147221040) {
-            return "Буфер обмена временно недоступен, попробуйте ещё раз";
+            return JsonSerializer.Serialize(new {
+                status = "ERROR",
+                cause = "clipboard_busy",
+                description = "Буфер обмена временно недоступен, попробуйте ещё раз"
+            });
         }
-        catch (Exception) {
-            return "Ошибка записи в буфер обмена";
+        catch (Exception ex) {
+            return JsonSerializer.Serialize(new {
+                status = "ERROR",
+                cause = "access_denied",
+                description = $"Ошибка записи в буфер обмена: {ex.Message}"
+            });
         }
     });
 
     [KernelFunction]
     [Description("Очищает буфер обмена")]
-    public async Task<string> ClearClipboard() => await ExecuteOnStaThreadAsync(() => {
+    public static async Task<string> ClearClipboard() => await ExecuteOnStaThreadAsync(() => {
         try {
             Clipboard.Clear();
-            return "Буфер обмена очищен";
+            return JsonSerializer.Serialize(new {
+                status = "DONE",
+                message = "Буфер обмена очищен"
+            });
         }
         catch (ExternalException ex) when (ex.ErrorCode == -2147221040) {
-            return "Буфер обмена временно недоступен, попробуйте ещё раз";
+            return JsonSerializer.Serialize(new {
+                status = "ERROR",
+                cause = "clipboard_busy",
+                description = "Буфер обмена временно недоступен, попробуйте ещё раз"
+            });
         }
-        catch (Exception) {
-            return "Ошибка очистки буфера обмена";
+        catch (Exception ex) {
+            return JsonSerializer.Serialize(new {
+                status = "ERROR",
+                cause = "access_denied",
+                description = $"Ошибка очистки буфера обмена: {ex.Message}"
+            });
         }
     });
 
     [KernelFunction]
     [Description("Возвращает информацию о содержимом буфера обмена")]
-    public async Task<string> GetInfoFromClipboard() => await ExecuteOnStaThreadAsync(() => {
+    public static async Task<string> GetInfoFromClipboard() => await ExecuteOnStaThreadAsync(() => {
         try {
-            var info = new StringBuilder();
+            var hasText = Clipboard.ContainsText();
+            var hasImage = Clipboard.ContainsImage();
+            var hasFiles = Clipboard.ContainsFileDropList();
+            var hasAudio = Clipboard.ContainsAudio();
 
-            info.AppendLine("Информация о буфере обмена:");
-            info.AppendLine($"- Текст: {(Clipboard.ContainsText() ? "есть" : "нет")}");
-            info.AppendLine($"- Изображения: {(Clipboard.ContainsImage() ? "есть" : "нет")}");
-            info.AppendLine($"- Файлы: {(Clipboard.ContainsFileDropList() ? "есть" : "нет")}");
-            info.AppendLine($"- Аудио: {(Clipboard.ContainsAudio() ? "есть" : "нет")}");
+            var result = new {
+                status = "DONE",
+                message = "Информация о буфере обмена получена",
+                contains = new {
+                    text = hasText,
+                    image = hasImage,
+                    files = hasFiles,
+                    audio = hasAudio
+                },
+                textInfo = hasText ? new {
+                    length = Clipboard.GetText().Length,
+                    preview = Clipboard.GetText().Length > 50
+                        ? Clipboard.GetText()[..50] + "..."
+                        : Clipboard.GetText()
+                } : null
+            };
 
-            if (Clipboard.ContainsText()) {
-                var text = Clipboard.GetText();
-                info.AppendLine($"- Длина текста: {text.Length}");
-                if (text.Length > 0)
-                    info.AppendLine($"- Начало текста: {(text.Length > 50 ? text[..50] : text)}");
-            }
-
-            return info.ToString();
+            return JsonSerializer.Serialize(result);
         }
         catch (ExternalException ex) when (ex.ErrorCode == -2147221040) {
-            return "Буфер обмена временно недоступен, попробуйте ещё раз";
+            return JsonSerializer.Serialize(new {
+                status = "ERROR",
+                cause = "clipboard_busy",
+                description = "Буфер обмена временно недоступен, попробуйте ещё раз"
+            });
         }
-        catch (Exception) {
-            return "Ошибка получения информации о содержимом буфера обмена";
+        catch (Exception ex) {
+            return JsonSerializer.Serialize(new {
+                status = "ERROR",
+                cause = "access_denied",
+                description = $"Ошибка получения информации о буфере обмена: {ex.Message}"
+            });
         }
     });
 
-    private async Task<T> ExecuteOnStaThreadAsync<T>(Func<T> action) {
+    private static async Task<T> ExecuteOnStaThreadAsync<T>(Func<T> action) {
         var tcs = new TaskCompletionSource<T>();
         var thread = new Thread(() => {
             try {

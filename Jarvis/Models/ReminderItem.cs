@@ -1,13 +1,30 @@
-﻿namespace Jarvis.Models;
+﻿using System.Text.Json.Serialization;
+
+namespace Jarvis.Models;
 
 public class ReminderItem {
+    [JsonPropertyName("id")]
     public Guid Id { get; set; } = Guid.NewGuid();
+
+    [JsonPropertyName("message")]
     public string Message { get; set; } = string.Empty;
+
+    [JsonPropertyName("scheduledTime")]
     public DateTime ScheduledTime { get; set; }
+
+    [JsonPropertyName("isRecurring")]
     public bool IsRecurring { get; set; }
+
+    [JsonPropertyName("recurringType")]
     public string? RecurringType { get; set; }
+
+    [JsonPropertyName("recurringValue")]
     public int? RecurringValue { get; set; }
+
+    [JsonPropertyName("recurringHour")]
     public int? RecurringHour { get; set; }
+
+    [JsonPropertyName("recurringMinute")]
     public int? RecurringMinute { get; set; }
 
     public ReminderItem() { }

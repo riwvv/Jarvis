@@ -23,7 +23,7 @@ public class CommunicationAiService : IDisposable {
     private Dictionary<string, Func<string, Task<string>>>? _fastCommands;
 
     // Храним результаты действий агента
-    private readonly List<string> _actionResults = [];
+    private readonly List<ActionResult> _actionResults = [];
     private string? _lastActionResult;
 
     private const int REMIDER_INTERVAL = 10;
@@ -43,6 +43,10 @@ public class CommunicationAiService : IDisposable {
         2. Не используй эмодзи. Будь кратким. Ответ может быть развёрнутым только если пользователь попросил о чём-то рассказать.
         3. Так же в ответе старайся избегать сложные/длинные названия файлов или путей, помни что твой ответ озвучивается пользователю.
         
+        ## ВАЖНО:
+        - Когда плагин возвращает JSON, используй поле 'message' для ответа пользователю.
+        - Не включай JSON напрямую в речь.
+
         Текущая дата: {DateTime.Now:D}";
 
     public CommunicationAiService(
@@ -74,11 +78,9 @@ public class CommunicationAiService : IDisposable {
         _initializationTcs.TrySetResult(true);
     }
 
-
     public async Task WaitForInitializationComplete() => await _initializationTcs.Task;
 
     public async Task<string?> GetRequestUser(string userQuery, CancellationToken cancellationToken = default) {
-        // === НАЧАЛО МЕТОДА ===
         _logger.LogInformation($"🚀 НАЧАЛО ОБРАБОТКИ: {userQuery}");
 
         if (string.IsNullOrWhiteSpace(userQuery)) {
@@ -101,7 +103,6 @@ public class CommunicationAiService : IDisposable {
             // Очищаем историю действий для новой команды
             _actionResults.Clear();
             _lastActionResult = null;
-            _logger.LogInformation($"🧹 ИСТОРИЯ ДЕЙСТВИЙ ОЧИЩЕНА");
 
             // 1. Проверяем быстрые команды
             _logger.LogInformation($"🔍 ПРОВЕРКА БЫСТРЫХ КОМАНД...");
@@ -111,49 +112,48 @@ public class CommunicationAiService : IDisposable {
                         _logger.LogInformation($"⚡ БЫСТРАЯ КОМАНДА: {key}");
                         var result = await action(userQuery);
 
-                        // Сохраняем результат действия
+                        // Сохраняем результат
+                        var actionResult = new ActionResult {
+                            Plugin = key,
+                            Result = result,
+                            Message = ExtractMessageFromJson(result)
+                        };
+                        _actionResults.Add(actionResult);
                         _lastActionResult = result;
-                        _actionResults.Add(result);
-                        _logger.LogInformation($"💾 РЕЗУЛЬТАТ СОХРАНЁН: {result} (количество действий: {_actionResults.Count})");
+
+                        _logger.LogInformation($"💾 РЕЗУЛЬТАТ СОХРАНЁН: {actionResult.Message} (действий: {_actionResults.Count})");
 
                         OnResult?.Invoke("DONE");
 
                         _ = Task.Run(async () => {
                             try {
                                 await _memoryService.SaveMemoryAsync(userQuery, result);
-                                _logger.LogInformation($"💾 АВТОСОХРАНЕНИЕ ВЫПОЛНЕНО");
                             }
                             catch (Exception ex) {
                                 _logger.LogError($"❌ АВТОСОХРАНЕНИЕ ПРОПУЩЕНО: {ex.Message}");
                             }
                         });
 
-                        var finalResponse = $"DONE: {result}";
-                        _logger.LogInformation($"✅ ОТВЕТ (БЫСТРАЯ КОМАНДА): {finalResponse}");
+                        var finalResponse = $"DONE: {actionResult.Message}";
                         return finalResponse;
                     }
                 }
             }
             _logger.LogInformation($"⏭️ БЫСТРЫЕ КОМАНДЫ НЕ ПОДОШЛИ");
 
-            // 2. Напоминание о плагинах (каждые 10 сообщений)
+            // 2. Напоминание о плагинах
             _messageCount++;
             if (_messageCount >= REMIDER_INTERVAL) {
                 _messageCount = 0;
                 _history.AddAssistantMessage("Напоминаю: у меня есть плагины ApplicationPlugin, BrowserPlugin, MediaPlayerPlugin и другие. Используй их для выполнения действий.");
-                _logger.LogInformation($"📢 ДОБАВЛЕНО НАПОМИНАНИЕ О ПЛАГИНАХ (счётчик {_messageCount})");
-            }
-            else {
-                _logger.LogInformation($"📊 СЧЁТЧИК СООБЩЕНИЙ: {_messageCount}/{REMIDER_INTERVAL}");
             }
 
             // 3. Запрос к LLM
-            _logger.LogInformation($"🧠 ЗАПРОС К LLM...");
+            _logger.LogInformation($"🧠 ЗАПРОС К LLM... (история: {_history.Count} сообщений)");
             var currentHistory = new ChatHistory();
             foreach (var msg in _history)
                 currentHistory.Add(msg);
             currentHistory.AddUserMessage(userQuery);
-            _logger.LogInformation($"📚 ИСТОРИЯ СООБЩЕНИЙ: {_history.Count} сообщений");
 
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             cts.CancelAfter(TimeSpan.FromSeconds(150));
@@ -161,60 +161,33 @@ public class CommunicationAiService : IDisposable {
             var response = await _chat.GetChatMessageContentAsync(currentHistory, _settings, _kernel, cts.Token);
             var responseContent = response?.Content ?? string.Empty;
 
-            _logger.LogInformation($"📨 ОТВЕТ ОТ LLM ПОЛУЧЕН: {(string.IsNullOrEmpty(responseContent) ? "ПУСТОЙ" : $"'{responseContent}'")}");
+            _logger.LogInformation($"📨 ОТВЕТ ОТ LLM: {(string.IsNullOrEmpty(responseContent) ? "ПУСТОЙ" : $"'{responseContent}'")}");
 
-            // 4. Обработка ответа
-            _logger.LogInformation($"🔄 ОБРАБОТКА ОТВЕТА...");
-            _logger.LogInformation($"📊 СОСТОЯНИЕ: actionResults.Count={_actionResults.Count}, IsEmpty={string.IsNullOrWhiteSpace(responseContent)}");
-
-            if (string.IsNullOrWhiteSpace(responseContent) && _actionResults.Count == 0) {
-                // LLM не поняла команду и ничего не сделала
-                _logger.LogWarning("⚠️ LLM ВЕРНУЛА ПУСТОЙ ОТВЕТ И НЕ ВЫПОЛНИЛА НИ ОДНОГО ДЕЙСТВИЯ");
-                responseContent = "WARNING: Команда не распознана. Пожалуйста, уточните запрос.";
-            }
-            else if (string.IsNullOrWhiteSpace(responseContent) && _actionResults.Count != 0) {
-                responseContent = _actionResults.Last();
-                _logger.LogWarning($"⚠️ LLM ВЕРНУЛА ПУСТОЙ ОТВЕТ, ИСПОЛЬЗОВАН РЕЗУЛЬТАТ ПОСЛЕДНЕГО ДЕЙСТВИЯ: {responseContent}");
-            }
-            else if (!string.IsNullOrWhiteSpace(responseContent) && !IsValidResponse(responseContent) && _actionResults.Count != 0) {
-                responseContent = _actionResults.Last();
-                _logger.LogWarning($"⚠️ LLM ВЕРНУЛА НЕВАЛИДНЫЙ ОТВЕТ, ИСПОЛЬЗОВАН РЕЗУЛЬТАТ ДЕЙСТВИЯ: {responseContent}");
-            }
-            else {
-                _logger.LogInformation($"✅ ОТВЕТ LLM КОРРЕКТНЫЙ: {responseContent}");
-            }
+            // 4. Обработка ответа LLM
+            responseContent = await ProcessResponseContent(responseContent, userQuery);
 
             // 5. Обновляем историю
             _history.AddUserMessage(userQuery);
             if (!string.IsNullOrWhiteSpace(responseContent)) {
                 _history.AddAssistantMessage(responseContent);
-                _logger.LogInformation($"📝 ДОБАВЛЕНО В ИСТОРИЮ: {responseContent}");
-            }
-            else {
-                _logger.LogWarning($"⚠️ ПУСТОЙ ОТВЕТ НЕ ДОБАВЛЕН В ИСТОРИЮ");
             }
 
             // Ограничиваем историю
-            while (_history.Count > 11) {
+            while (_history.Count > 7) {
                 _history.RemoveAt(1);
                 _logger.LogInformation($"🗑️ УДАЛЕНО СТАРОЕ СООБЩЕНИЕ ИЗ ИСТОРИИ (осталось {_history.Count})");
             }
 
             // 6. Извлекаем статус и логируем
             string status = ExtractStatusFromResponse(responseContent);
-            _logger.LogInformation($"🏷️ СТАТУС: {status}");
+            _logger.LogInformation($"🏷️ СТАТУС: {status} | ДЕЙСТВИЙ: {_actionResults.Count} | ОТВЕТ: {responseContent}");
             OnResult?.Invoke(status);
-            _logger.LogInformation($"📤 ФИНАЛЬНЫЙ ОТВЕТ: {responseContent}");
 
-            // 7. Сохраняем в RAG, если команда успешна
+            // 7. Сохраняем в RAG
             if (!string.IsNullOrWhiteSpace(userQuery) && IsSuccessfulResponse(responseContent)) {
-                var query = userQuery;
-                var resp = responseContent;
-
                 _ = Task.Run(async () => {
                     try {
-                        await _memoryService.SaveMemoryAsync(query, resp);
-                        _logger.LogInformation($"💾 RAG: Автосохранение: {query}");
+                        await _memoryService.SaveMemoryAsync(userQuery, responseContent);
                     }
                     catch (Exception ex) {
                         _logger.LogError($"❌ RAG: Ошибка автосохранения: {ex.Message}");
@@ -222,30 +195,118 @@ public class CommunicationAiService : IDisposable {
                 });
             }
 
-            _logger.LogInformation($"🏁 ЗАВЕРШЕНИЕ МЕТОДА. ВОЗВРАЩАЕТСЯ: {responseContent}");
             return responseContent;
         }
         catch (OperationCanceledException) {
             _logger.LogWarning($"⏹️ ЗАПРОС ОТМЕНЁН");
             OnResult?.Invoke("WARNING: Запрос отменён");
+
+            if (_actionResults.Count != 0) {
+                var fallback = _actionResults.Last().Message;
+                _logger.LogWarning($"🔄 ИСПОЛЬЗОВАН ПОСЛЕДНИЙ РЕЗУЛЬТАТ: {fallback}");
+                return $"DONE: {fallback}";
+            }
             return null;
         }
         catch (Exception ex) {
             _logger.LogError($"💥 ИСКЛЮЧЕНИЕ: {ex.Message}");
             OnResult?.Invoke($"ERROR: {ex.Message}");
 
-            if (_actionResults.Any()) {
-                var fallbackResult = _actionResults.Last();
-                _logger.LogWarning($"🔄 ИСПОЛЬЗОВАН FALLBACK РЕЗУЛЬТАТ: {fallbackResult}");
-                return $"DONE: {fallbackResult}";
+            if (_actionResults.Count != 0) {
+                var fallback = _actionResults.Last().Message;
+                _logger.LogWarning($"🔄 ИСПОЛЬЗОВАН ПОСЛЕДНИЙ РЕЗУЛЬТАТ: {fallback}");
+                return $"DONE: {fallback}";
             }
 
             return null;
         }
         finally {
             _semaphore.Release();
-            _logger.LogInformation($"🔓 СЕМАФОР ОСВОБОЖДЁН");
         }
+    }
+
+    private async Task<string> ProcessResponseContent(string responseContent, string userQuery) {
+        // Проверяем, не является ли ответ результатом вызова плагина
+        if (IsJsonResponse(responseContent)) {
+            var message = ExtractMessageFromJson(responseContent);
+            if (!string.IsNullOrEmpty(message)) {
+                _actionResults.Add(new ActionResult {
+                    Plugin = "LLM",
+                    Result = responseContent,
+                    Message = message
+                });
+                _logger.LogInformation($"📦 ОБНАРУЖЕН JSON, ИЗВЛЕЧЕНО СООБЩЕНИЕ: {message}");
+                return message;
+            }
+        }
+
+        // Если ответ пустой, но есть результаты действий
+        if (string.IsNullOrWhiteSpace(responseContent) && _actionResults.Count != 0) {
+            var lastResult = _actionResults.Last().Message;
+            _logger.LogWarning($"⚠️ LLM ВЕРНУЛА ПУСТОЙ ОТВЕТ, ИСПОЛЬЗОВАН РЕЗУЛЬТАТ: {lastResult}");
+            return lastResult;
+        }
+
+        // Если ответ невалидный, но есть результаты действий
+        if (!string.IsNullOrWhiteSpace(responseContent) && !IsValidResponse(responseContent) && _actionResults.Count != 0) {
+            var lastResult = _actionResults.Last().Message;
+            _logger.LogWarning($"⚠️ LLM ВЕРНУЛА НЕВАЛИДНЫЙ ОТВЕТ, ИСПОЛЬЗОВАН РЕЗУЛЬТАТ: {lastResult}");
+            return lastResult;
+        }
+
+        // Если ответ валидный, но начинается с префикса и содержит JSON
+        if (responseContent.StartsWith("DONE:") || responseContent.StartsWith("WARNING:") || responseContent.StartsWith("ERROR:")) {
+            var parts = responseContent.Split(' ', 2);
+            if (parts.Length == 2) {
+                var content = parts[1];
+                if (IsJsonResponse(content)) {
+                    var message = ExtractMessageFromJson(content);
+                    if (!string.IsNullOrEmpty(message)) {
+                        _actionResults.Add(new ActionResult {
+                            Plugin = "LLM",
+                            Result = content,
+                            Message = message
+                        });
+                        return $"{parts[0]} {message}";
+                    }
+                }
+            }
+        }
+
+        // Если ответ валидный
+        if (!string.IsNullOrWhiteSpace(responseContent) && IsValidResponse(responseContent)) {
+            _actionResults.Add(new ActionResult {
+                Plugin = "LLM",
+                Result = responseContent,
+                Message = responseContent
+            });
+            return responseContent;
+        }
+
+        // Если ничего не подошло
+        _logger.LogWarning($"⚠️ НЕ УДАЛОСЬ ОБРАБОТАТЬ ОТВЕТ: {responseContent}");
+        return "WARNING: Команда не распознана. Пожалуйста, уточните запрос.";
+    }
+
+    #region Вспомогательные методы
+
+    private static string ExtractMessageFromJson(string result) {
+        if (string.IsNullOrWhiteSpace(result)) return result;
+
+        if (IsJsonResponse(result)) {
+            try {
+                using var json = JsonDocument.Parse(result);
+                if (json.RootElement.TryGetProperty("message", out var messageProp)) {
+                    return messageProp.GetString() ?? result;
+                }
+                if (json.RootElement.TryGetProperty("description", out var descProp)) {
+                    return descProp.GetString() ?? result;
+                }
+            }
+            catch { }
+        }
+
+        return result;
     }
 
     private static bool IsValidResponse(string response) {
@@ -286,6 +347,14 @@ public class CommunicationAiService : IDisposable {
         if (upper.StartsWith("ERROR")) return "ERROR";
         return "DONE";
     }
+
+    private class ActionResult {
+        public string Plugin { get; set; } = string.Empty;
+        public string Result { get; set; } = string.Empty;
+        public string Message { get; set; } = string.Empty;
+    }
+
+    #endregion
 
     private void InitializeFastCommands() {
         _fastCommands = new Dictionary<string, Func<string, Task<string>>>(StringComparer.OrdinalIgnoreCase) {
@@ -384,33 +453,13 @@ public class CommunicationAiService : IDisposable {
             ["какая погода"] = async (_) => {
                 var function = _kernel.Plugins.GetFunction("WeatherPlugin", "GetWeatherAtCurrentLocation");
                 var result = await _kernel.InvokeAsync(function);
-                var jsonResult = result.GetValue<string>();
-
-                if (jsonResult != null && IsJsonResponse(jsonResult)) {
-                    try {
-                        using var doc = JsonDocument.Parse(jsonResult);
-                        var message = doc.RootElement.GetProperty("message").GetString();
-                        return message ?? "Погода не найдена";
-                    }
-                    catch { }
-                }
-                return jsonResult ?? "Погода не найдена";
+                return result.GetValue<string>() ?? "Погода не найдена";
             },
 
             ["погода"] = async (_) => {
                 var function = _kernel.Plugins.GetFunction("WeatherPlugin", "GetWeatherAtCurrentLocation");
                 var result = await _kernel.InvokeAsync(function);
-                var jsonResult = result.GetValue<string>();
-
-                if (jsonResult != null && IsJsonResponse(jsonResult)) {
-                    try {
-                        using var doc = JsonDocument.Parse(jsonResult);
-                        var message = doc.RootElement.GetProperty("message").GetString();
-                        return message ?? "Погода не найдена";
-                    }
-                    catch { }
-                }
-                return jsonResult ?? "Погода не найдена";
+                return result.GetValue<string>() ?? "Погода не найдена";
             },
 
             ["какая погода завтра"] = async (_) => {
